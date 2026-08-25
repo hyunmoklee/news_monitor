@@ -1,0 +1,47 @@
+# scoring_config.yaml (초기값 — 확정 아님, 데이터 확보 후 조정 예정)
+positive_signals:
+  reasonable_length:
+    weight: 20
+    min_chars: 200
+    max_chars: 20000
+  paragraph_count:
+    weight: 15
+    min_paragraphs: 2
+  low_link_density:
+    weight: 20
+    max_link_char_ratio: 0.15
+  title_body_overlap:
+    weight: 15
+    min_overlap_ratio: 0.2
+  dom_article_tag_match:
+    weight: 15
+  korean_char_ratio:
+    weight: 15
+    min_ratio: 0.6
+
+negative_signals:
+  boilerplate_keywords:
+    weight: -20
+    keywords:
+      - '관련기사'
+      - '많이 본 뉴스'
+      - '추천기사'
+      - '무단전재'
+      - '재배포 금지'
+      - '저작권자'
+      - '구독'
+      - '댓글'
+      - '협찬'
+      - '제휴'
+      - '기자의 다른 기사'
+      - '무단전재 및 재배포'
+  repeated_sentences:
+    weight: -15
+  excessive_short_paragraphs:
+    weight: -10
+    max_ratio: 0.4
+    short_char_threshold: 20
+
+thresholds:
+  high_confidence: 85       # 이상이면 needs_review=false
+  low_confidence: 60        # 미만이면 needs_review=true, 2nd extractor 시도

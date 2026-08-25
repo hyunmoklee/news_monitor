@@ -1,3 +1,7 @@
 crawl4ai
 aiosqlite
 playwright
+trafilatura==2.2.0
+pyyaml
+google-genai
+pytest

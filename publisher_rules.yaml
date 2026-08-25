@@ -1,0 +1,26 @@
+# publisher_rules.yaml
+publishers:
+  n.news.naver.com:
+    article_selector: '#newsct_article, #artice_body, #news_body_area'
+    remove_selectors:
+      - '.media_end_head_top_logo'
+      - '.media_end_head_info'
+      - '.media_end_summary'
+      - '.byline'
+      - '.journalist_card'
+      - '.media_end_linked_more'
+      - '.media_end_categorize'
+    date_selector: '.media_end_head_info_datestamp_time'
+    author_selector: '.media_end_head_journalist_name, .byline_s'
+    notes: '네이버 뉴스 인링크 표준 셀렉터'
+
+  wikitree.co.kr:
+    article_selector: '#articleBody, .article-body, div.article_view'
+    remove_selectors:
+      - '.related-news'
+      - '.ad-box'
+      - '.banner'
+      - '.reporter-info'
+    date_selector: '.article-date, .date'
+    author_selector: '.reporter, .byline'
+    notes: '위키트리 기사 본문 셀렉터'

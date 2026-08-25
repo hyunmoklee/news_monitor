@@ -35,8 +35,12 @@ jobs:
           python -m playwright install --with-deps chromium
 
       - name: Run News Crawler
+        env:
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID || 'oioijo7rek' }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET || 'EheJe6HadgzG72bpfla3E2Wt6tYawnDDEKOaFLBt' }}
         run: |
           python run.py
+
 
       - name: Build Web Dashboard
         run: |
