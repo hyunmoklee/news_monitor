@@ -12,12 +12,13 @@ positive_signals:
     max_link_char_ratio: 0.15
   title_body_overlap:
     weight: 15
-    min_overlap_ratio: 0.2
+    min_overlap_ratio: 0.1
   dom_article_tag_match:
     weight: 15
   korean_char_ratio:
     weight: 15
     min_ratio: 0.6
+
 
 negative_signals:
   boilerplate_keywords:

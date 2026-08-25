@@ -23,9 +23,17 @@ ehthumbs.db
 Desktop.ini
 .DS_Store
 
-# Temporary results
+# Temporary results and test dumps
 clean_result.json
+article_*.json
+case_*.json
+target_*.json
+*.raw.html
+*_summary.txt
+user_feedback_*.json
+*_backup_*.db
 
 # Environment variables
 .env
+
 

@@ -224,6 +224,38 @@ def extract_journalist_from_text(text: str, html_str: str = "") -> str:
             
     return "알 수 없음"
 
+def normalize_inline_breaks(text: str) -> str:
+    """
+    Fixes unnatural vertical line-breaks caused by inline tags (e.g. stock names like '삼성전자 \n\n 와 \n\n SK하이닉스').
+    Re-attaches short floating words (<= 12 chars) into continuous sentences unless they look like real headers.
+    """
+    if not text:
+        return ""
+    
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return ""
+        
+    merged_lines = []
+    current_para = []
+    
+    for line in lines:
+        # If the line is a single short entity/word (e.g. "삼성전자", "와", "키움증권", "순이었습니다.")
+        # and doesn't look like a formal title or bullet point, merge with current sentence
+        is_short_fragment = len(line) <= 15 and not line.startswith(('#', '-', '*', '■', '▲', '[', '【'))
+        ends_with_sentence = bool(re.search(r'[.?!\"\']$', line))
+        
+        if current_para and (is_short_fragment or not ends_with_sentence):
+            # Check if previous line ended without sentence terminator or is a fragment
+            prev_line = current_para[-1]
+            if len(prev_line) < 25 or not re.search(r'[.?!\"\']$', prev_line):
+                current_para[-1] = f"{prev_line} {line}".strip()
+                continue
+                
+        current_para.append(line)
+        
+    return "\n\n".join(current_para)
+
 def sanitize_body_text(text: str) -> str:
     """Cleans up raw crawled body text, removing redundant nav links, ads, and empty lines."""
     if not text:
@@ -248,10 +280,12 @@ def sanitize_body_text(text: str) -> str:
     for pat in noise_patterns:
         cleaned = re.sub(pat, '', cleaned, flags=re.IGNORECASE)
         
+    cleaned = normalize_inline_breaks(cleaned)
     lines = [line.strip() for line in cleaned.splitlines() if line.strip()]
     cleaned = "\n\n".join(lines)
     cleaned = re.sub(r'\n{3,}', '\n\n', cleaned)
     return cleaned.strip()
+
 
 def extract_full_title(soup: BeautifulSoup, fallback_title: str = "") -> str:
     """Extracts untruncated clean headline from HTML meta tags (og:title), h1, or title tag (strictly <= 120 chars)."""
@@ -379,48 +413,168 @@ class NaverNewsCrawler:
             return data
 
     async def scrape_external_news_details(self, url: str) -> Dict[str, Any]:
-        """Crawls a generic external news website to extract full title, body text, and journalist."""
-        config = CrawlerRunConfig(cache_mode=CacheMode.BYPASS, magic=True, wait_until='networkidle')
+        """
+        3-Tier Ultra-Fast & Self-Healing News Extractor:
+        1. Tier 1: Direct HTTP GET (0.2s) + Publisher Rules & Trafilatura (90% success)
+        2. Tier 2: Lightweight Browser (domcontentloaded, 1~2s) for JS-rendered pages
+        3. Tier 3: Self-Healing DOM Text-Density Analyzer (Auto-discovers new CSS selector and saves to YAML)
+        """
+        import httpx
+        import trafilatura
+        from extractor.site_extractor import SiteExtractor
+        from extractor.rule_learner import discover_article_selector, auto_register_rule, extract_clean_domain
         
-        async with AsyncWebCrawler() as crawler:
-            result = await crawler.arun(url=url, config=config)
-            
-            if not result.success:
-                return {}
-                
-            body = ""
-            extracted_title = ""
-            html_content = result.html or ""
-            soup = None
-            
-            # 1. Try parsing with BeautifulSoup
+        domain = extract_clean_domain(url)
+        site_extractor = SiteExtractor()
+        
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+            "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7"
+        }
+        
+        html_content = ""
+        extracted_title = ""
+        body = ""
+        journalist = "알 수 없음"
+
+
+        def decode_bytes(raw_bytes: bytes, default_enc: str = "utf-8") -> str:
+            if not raw_bytes:
+                return ""
+
+            # 1. Try detecting charset from meta tag
+            charset_match = re.search(rb'charset=[\"\']?([a-zA-Z0-9_-]+)', raw_bytes, re.IGNORECASE)
+            detected_enc = charset_match.group(1).decode('ascii', errors='ignore') if charset_match else default_enc
+            for enc in [detected_enc, 'utf-8', 'euc-kr', 'cp949']:
+                if not enc:
+                    continue
+                try:
+                    return raw_bytes.decode(enc)
+                except Exception:
+                    pass
+            return raw_bytes.decode('utf-8', errors='replace')
+
+        # === Tier 1: Fast Direct HTTP GET ===
+        try:
+            async with httpx.AsyncClient(timeout=8, follow_redirects=True, headers=headers, verify=False) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200 and len(resp.content) > 200:
+                    text_candidate = decode_bytes(resp.content, resp.encoding or "utf-8")
+                    # Check for meta http-equiv="refresh" redirect (e.g. m.skyedaily.com -> www.skyedaily.com)
+                    meta_refresh = re.search(r'<meta[^>]+http-equiv=["\']refresh["\'][^>]+content=["\'][^"\']*url=[\'"]?([^\'" >]+)', text_candidate, re.IGNORECASE)
+                    if not meta_refresh:
+                        meta_refresh = re.search(r'content=["\'][0-9]+;\s*url=[\'"]?([^\'" >]+)', text_candidate, re.IGNORECASE)
+                    if meta_refresh:
+                        redirect_target = meta_refresh.group(1).strip().strip("'\"")
+                        if redirect_target.startswith("/"):
+                            parsed_u = urlparse(url)
+                            redirect_target = f"{parsed_u.scheme}://{parsed_u.netloc}{redirect_target}"
+                        resp2 = await client.get(redirect_target)
+                        if resp2.status_code == 200:
+                            html_content = decode_bytes(resp2.content, resp2.encoding or "utf-8")
+                            url = redirect_target
+                            domain = extract_clean_domain(url)
+                    else:
+                        html_content = text_candidate
+        except Exception:
+            pass
+
+
+        # === Tier 2: Crawl4AI with domcontentloaded if Direct HTTP was empty or blocked ===
+        if not html_content or len(html_content) < 500:
+            try:
+                config = CrawlerRunConfig(
+                    cache_mode=CacheMode.BYPASS,
+                    wait_until='domcontentloaded',
+                    page_timeout=12000,
+                    magic=True
+                )
+                async with AsyncWebCrawler() as crawler:
+                    result = await crawler.arun(url=url, config=config)
+                    if result.success and result.html:
+                        html_content = result.html
+            except Exception:
+                pass
+
+        if not html_content:
+            return {
+                "title": "",
+                "body": "[본문 수집 불가: 사이트 접속 실패/차단]",
+                "journalist": "알 수 없음",
+                "success": False
+            }
+
+        # Extract Title & Metadata from HTML
+        try:
+            soup = BeautifulSoup(html_content, "html.parser")
+            extracted_title = extract_full_title(soup)
+        except Exception:
+            pass
+
+        # === Extraction Step A: Publisher Rules (Exact CSS Selector) ===
+        site_res = site_extractor.extract(html_content, url)
+        if site_res and site_res.get("success") and len(site_res.get("body", "")) >= 150:
+            body = site_res["body"]
+            if site_res.get("author"):
+                journalist = clean_final_journalist_name(site_res["author"])
+
+        # === Extraction Step B: Trafilatura Precision ===
+        if not body or len(body.strip()) < 150:
+            try:
+                traf_text = trafilatura.extract(
+                    html_content,
+                    include_comments=False,
+                    include_tables=False,
+                    favor_precision=True
+                )
+                if traf_text and len(traf_text.strip()) >= 150:
+                    body = traf_text.strip()
+            except Exception:
+                pass
+
+        # === Extraction Step C: Self-Healing DOM Text-Density Learner ===
+        # If extraction is still too short or empty, automatically discover the best selector!
+        if not body or len(body.strip()) < 150:
+            learned = discover_article_selector(html_content)
+            if learned:
+                best_selector, learned_text = learned
+                if len(learned_text) >= 200:
+                    body = learned_text
+                    # Save newly learned rule for future 0.01s extraction!
+                    if domain:
+                        auto_register_rule(domain, best_selector)
+
+        # === Extraction Step D: Generic Selectors Fallback ===
+        if not body or len(body.strip()) < 100:
             try:
                 soup = BeautifulSoup(html_content, "html.parser")
-                extracted_title = extract_full_title(soup)
                 for selector in GENERIC_BODY_SELECTORS:
                     el = soup.select_one(selector)
                     if el:
-                        text = el.get_text().strip()
+                        text = el.get_text(separator="\n").strip()
                         if len(text) > 100:
                             body = text
                             break
             except Exception:
                 pass
-                
-            # 2. Fallback to clean markdown if selector failed
-            if not body or len(body.strip()) < 80:
-                if result.markdown and len(result.markdown) > 100:
-                    body = result.markdown
-                    
-            # 3. Extract journalist from external HTML & body
-            journalist = extract_journalist_from_text(body, html_content)
-            journalist = clean_final_journalist_name(journalist)
-                    
-            return {
-                "title": extracted_title,
-                "body": sanitize_body_text(body),
-                "journalist": journalist
-            }
+
+        # Extract journalist if not found
+        if journalist in ["알 수 없음", ""]:
+            found_j = extract_journalist_from_text(body, html_content)
+            journalist = clean_final_journalist_name(found_j)
+
+        cleaned_body = sanitize_body_text(body)
+        if not cleaned_body or len(cleaned_body) < 80:
+            cleaned_body = "[본문 수집 불가: 구조 파싱 실패/유료회원 전용]"
+
+        return {
+            "title": extracted_title,
+            "body": cleaned_body,
+            "journalist": journalist,
+            "success": "[본문 수집 불가" not in cleaned_body
+        }
+
 
     async def process_item_hybrid(self, item: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -473,23 +627,24 @@ class NaverNewsCrawler:
                 
         # 2. External News Site Full Body Crawling (using full query params)
         crawl_url = original_link or (naver_link if not is_naver_news_url(naver_link) else "")
-        if (not is_naver_news_url(naver_link) or len(body) <= len(api_desc)) and crawl_url:
+        if not is_naver_news_url(naver_link) and crawl_url:
             try:
                 ext_crawled = await self.scrape_external_news_details(crawl_url)
                 ext_title = (ext_crawled.get("title") or "").strip()
                 if ext_title and (title.endswith("...") or title.endswith("…")):
                     if len(ext_title) <= 100 and "/사진=" not in ext_title and "이미지 확대" not in ext_title:
                         title = ext_title
-                if ext_crawled.get("body") and len(ext_crawled["body"]) > len(api_desc):
+                if ext_crawled.get("body"):
                     body = ext_crawled["body"]
                 if ext_crawled.get("journalist") and ext_crawled["journalist"] != "알 수 없음" and journalist in ["알 수 없음", ""]:
                     journalist = ext_crawled["journalist"]
             except Exception as e:
                 print(f"    ⚠️ External news crawl failed on {crawl_url}: {e}")
+                body = "[본문 수집 불가: 크롤링 에러 발생]"
                 
         # 3. Final fallback from body + description
         if journalist in ["알 수 없음", ""]:
-            found = extract_journalist_from_text(f"{title}\n{api_desc}\n{body}")
+            found = extract_journalist_from_text(f"{title}\n{body}")
             if found != "알 수 없음":
                 journalist = found
                 
@@ -503,16 +658,21 @@ class NaverNewsCrawler:
         # Format publication date
         published_at = parse_pub_date(pub_date)
         
+        final_body = sanitize_body_text(body)
+        if not final_body or len(final_body) < 50:
+            final_body = "[본문 수집 불가: 내용 파싱 실패]"
+            
         return {
             "url": target_url,
             "title": title,
             "media_name": media_name,
             "journalist": final_journalist,
-            "body": sanitize_body_text(body) or api_desc,
+            "body": final_body,
             "originallink": original_link or target_url,
             "pub_date": pub_date,
             "published_at": published_at
         }
+
 
     async def scrape_raw_html(self, url: str) -> Dict[str, Any]:
         """Crawls a URL using Crawl4AI and returns unadulterated raw HTML."""

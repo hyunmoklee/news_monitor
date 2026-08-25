@@ -75,12 +75,26 @@ def calculate_quality_score(
     paragraphs = [p.strip() for p in clean_text.splitlines() if p.strip()]
     p_cnt_cfg = pos_cfg.get("paragraph_count", {})
     min_p = p_cnt_cfg.get("min_paragraphs", 2)
-    w_p = p_cnt_cfg.get("weight", 10)
+    w_p = p_cnt_cfg.get("weight", 15)
+    
+    # Check paragraphs or sentence count as fallback (handle periods without spaces, common in broadcast news)
+    sentences = [s.strip() for s in re.split(r'(?<=[.!?])\s*|\n+', clean_text) if len(s.strip()) > 8]
     if len(paragraphs) >= min_p:
         score += w_p
         detail["paragraph_count"] = w_p
+    elif len(sentences) >= 3 or char_len >= 250:
+        # Monolithic article with multiple valid sentences or sufficient length gets full paragraph weight
+        score += w_p
+        detail["paragraph_count"] = w_p
+        detail["paragraph_count_type"] = "sentence_fallback"
+    elif len(sentences) >= 2:
+        partial_p = int(w_p * 0.7)
+        score += partial_p
+        detail["paragraph_count"] = partial_p
+        detail["paragraph_count_type"] = "partial_sentence_fallback"
     else:
         detail["paragraph_count"] = 0
+
 
     # 3. Positive Signal: Low Link Density
     p_link_cfg = pos_cfg.get("low_link_density", {})
@@ -108,10 +122,27 @@ def calculate_quality_score(
         detail["low_link_density"] = 0
     detail["link_ratio"] = round(link_ratio, 3)
 
-    # 4. Positive Signal: Title-Body Overlap
+    # 4. Positive Signal: Korean Character Ratio
+    p_kr_cfg = pos_cfg.get("korean_character_ratio", {})
+    min_kr = p_kr_cfg.get("min_korean_ratio", 0.6)
+    w_kr = p_kr_cfg.get("weight", 15)
+    kr_chars = len(re.findall(r'[가-힣]', clean_text))
+    kr_ratio = kr_chars / max(char_len, 1)
+    detail["korean_char_ratio"] = round(kr_ratio, 2)
+    if kr_ratio >= min_kr:
+        score += w_kr
+        detail["korean_char_signal"] = w_kr
+    elif kr_ratio >= 0.4:
+        partial_kr = int(w_kr * 0.7)
+        score += partial_kr
+        detail["korean_char_signal"] = partial_kr
+    else:
+        detail["korean_char_signal"] = 0
+
+    # 5. Positive Signal: Title-Body Overlap
     p_title_cfg = pos_cfg.get("title_body_overlap", {})
-    w_title = p_title_cfg.get("weight", 10)
-    min_overlap = p_title_cfg.get("min_overlap_ratio", 0.2)
+    w_title = p_title_cfg.get("weight", 15)
+    min_overlap = p_title_cfg.get("min_overlap_ratio", 0.15)
     if title:
         title_tokens = set(re.findall(r'[가-힣a-zA-Z0-9]{2,}', title))
         if title_tokens:
@@ -120,6 +151,11 @@ def calculate_quality_score(
             if overlap_ratio >= min_overlap:
                 score += w_title
                 detail["title_body_overlap"] = w_title
+            elif char_len >= 300 and kr_ratio >= 0.5:
+                # If body is substantial and clearly in Korean, grant partial points for metaphoric/creative headlines
+                partial_title = int(w_title * 0.7)
+                score += partial_title
+                detail["title_body_overlap"] = partial_title
             else:
                 detail["title_body_overlap"] = 0
             detail["title_overlap_ratio"] = round(overlap_ratio, 2)
@@ -130,7 +166,7 @@ def calculate_quality_score(
         score += int(w_title * 0.5)
         detail["title_body_overlap"] = int(w_title * 0.5)
 
-    # 5. Positive Signal: DOM Article Tag Match
+    # 6. Positive Signal: DOM Article Tag Match
     p_dom_cfg = pos_cfg.get("dom_article_tag_match", {})
     w_dom = p_dom_cfg.get("weight", 15)
     if html:
@@ -141,78 +177,66 @@ def calculate_quality_score(
         else:
             detail["dom_article_tag_match"] = 0
     else:
-        score += int(w_dom * 0.5)
-        detail["dom_article_tag_match"] = int(w_dom * 0.5)
+        # If HTML is omitted but text is clean and long enough (>= 300 chars), grant full DOM tag weight
+        if char_len >= 300:
+            score += w_dom
+            detail["dom_article_tag_match"] = w_dom
+        else:
+            partial_dom = int(w_dom * 0.5)
+            score += partial_dom
+            detail["dom_article_tag_match"] = partial_dom
 
-    # 6. Positive Signal: Korean Character Ratio
-    p_kr_cfg = pos_cfg.get("korean_char_ratio", {})
-    min_kr = p_kr_cfg.get("min_ratio", 0.6)
-    w_kr = p_kr_cfg.get("weight", 10)
-    kr_chars = len(re.findall(r'[가-힣]', clean_text))
-    non_space_chars = len(re.findall(r'\S', clean_text)) or 1
-    kr_ratio = kr_chars / non_space_chars
-    detail["korean_char_ratio"] = round(kr_ratio, 2)
-    if kr_ratio >= min_kr:
-        score += w_kr
-        detail["korean_char_signal"] = w_kr
-    else:
-        detail["korean_char_signal"] = 0
 
-    # 7. Negative Signal: Boilerplate Keywords
-    n_bp_cfg = neg_cfg.get("boilerplate_keywords", {})
-    bp_keywords = n_bp_cfg.get("keywords", [])
-    w_bp = n_bp_cfg.get("weight", -20)
-    bp_hits = 0
-    affected_paragraphs = 0
-    for p in paragraphs:
-        p_hit = [kw for kw in bp_keywords if kw in p]
-        if p_hit:
-            bp_hits += len(p_hit)
-            affected_paragraphs += 1
-    
-    para_len = max(len(paragraphs), 1)
-    affected_ratio = affected_paragraphs / para_len
-    if affected_ratio > 0:
-        penalty = int(w_bp * min(affected_ratio * 1.5, 1.0))
-        score += penalty
-        detail["boilerplate_penalty"] = penalty
+    # ==========================================
+    # NEGATIVE PENALTIES
+    # ==========================================
+    neg_cfg = config.get("negative_penalties", {})
+
+    # 1. Penalty: Boilerplate & Promotional Keywords
+    bp_cfg = neg_cfg.get("boilerplate_keywords", {})
+    bp_keywords = bp_cfg.get("keywords", [])
+    pen_bp = bp_cfg.get("penalty_per_hit", 10)
+    max_pen_bp = bp_cfg.get("max_penalty", 30)
+    bp_hits = sum(1 for kw in bp_keywords if kw in clean_text)
+    if bp_hits > 0:
+        bp_pen_applied = min(bp_hits * pen_bp, max_pen_bp)
+        score -= bp_pen_applied
+        detail["boilerplate_penalty"] = -bp_pen_applied
     else:
         detail["boilerplate_penalty"] = 0
     detail["boilerplate_hits"] = bp_hits
 
-    # 8. Negative Signal: Repeated Sentences
-    n_rep_cfg = neg_cfg.get("repeated_sentences", {})
-    w_rep = n_rep_cfg.get("weight", -15)
-    sentences = [s.strip() for s in re.split(r'[.!?]\s+|\n+', clean_text) if len(s.strip()) > 15]
-    if len(sentences) >= 4:
-        seen = set()
-        duplicates = 0
-        for s in sentences:
-            if s in seen:
-                duplicates += 1
-            seen.add(s)
-        dup_ratio = duplicates / len(sentences)
-        if dup_ratio > 0.15:
-            penalty = int(w_rep * min(dup_ratio * 2.0, 1.0))
-            score += penalty
-            detail["repeated_sentences_penalty"] = penalty
+    # 2. Penalty: Repeated Sentences
+    rep_cfg = neg_cfg.get("repeated_sentences", {})
+    max_rep_ratio = rep_cfg.get("max_repeated_sentence_ratio", 0.15)
+    pen_rep = rep_cfg.get("penalty_weight", 15)
+    if sentences:
+        from collections import Counter
+        sent_counts = Counter(sentences)
+        dupes = sum(cnt - 1 for s, cnt in sent_counts.items() if cnt > 1)
+        dupe_ratio = dupes / len(sentences)
+        if dupe_ratio > max_rep_ratio:
+            rep_pen = int(dupe_ratio * pen_rep)
+            score -= rep_pen
+            detail["repeated_sentences_penalty"] = -rep_pen
         else:
             detail["repeated_sentences_penalty"] = 0
     else:
         detail["repeated_sentences_penalty"] = 0
 
-    # 9. Negative Signal: Excessive Short Paragraphs
-    n_short_cfg = neg_cfg.get("excessive_short_paragraphs", {})
-    w_short = n_short_cfg.get("weight", -10)
-    max_short_ratio = n_short_cfg.get("max_ratio", 0.4)
-    short_thresh = n_short_cfg.get("short_char_threshold", 20)
-    if len(paragraphs) >= 3:
-        short_count = sum(1 for p in paragraphs if len(p) < short_thresh)
-        short_ratio = short_count / len(paragraphs)
-        detail["short_paragraph_ratio"] = round(short_ratio, 2)
-        if short_ratio > max_short_ratio:
-            score += w_short
-            detail["short_paragraph_penalty"] = w_short
+    # 3. Penalty: Short Paragraphs Dominance (Listings / Menus)
+    sp_cfg = neg_cfg.get("short_paragraphs", {})
+    max_sp_len = sp_cfg.get("max_char_len", 30)
+    max_sp_ratio = sp_cfg.get("max_short_paragraph_ratio", 0.6)
+    pen_sp = sp_cfg.get("penalty_weight", 10)
+    if paragraphs and len(paragraphs) >= 3:
+        short_p = sum(1 for p in paragraphs if len(p) <= max_sp_len)
+        sp_ratio = short_p / len(paragraphs)
+        detail["short_paragraph_ratio"] = round(sp_ratio, 2)
+        # If overall body is long (> 600 chars), forgive minor short-paragraph fragments
+        if sp_ratio > max_sp_ratio and char_len < 600:
+            score -= pen_sp
+            detail["short_paragraph_penalty"] = -pen_sp
         else:
             detail["short_paragraph_penalty"] = 0
     else:
@@ -225,21 +249,41 @@ def calculate_quality_score(
             return 0, {"reason": "paywall_or_block", "total_score": 0, "matched_keyword": kw}
 
     # === NEW: Ending Validation for Truncation (Case 3) ===
-    # Relaxed validation: Check the last 300 characters to tolerate appended SNS links or menus
+    # Relaxed validation: Check the last 300 characters to tolerate appended SNS links, photo captions, or menus
     ending_text = clean_text[-300:]
     # Remove markdown links like [naver 블로그](https://...) to expose the actual article ending
-    ending_text_no_links = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', ending_text)
-    ending_text_no_links = re.sub(r'https?://[^\s]+', '', ending_text_no_links)
+    ending_text_clean = re.sub(r'\[([^\]]+)\]\([^\)]+\)', r'\1', ending_text)
+    ending_text_clean = re.sub(r'https?://[^\s]+', '', ending_text_clean)
     
-    # Valid ending signals: period, exclamation, quote mark, email address, copyright mark, or reporter byline
-    has_valid_ending = bool(re.search(r'([.?!]\s*[\"\'”’]?\s*$|기자\s*=?|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|\b[ⓒ©]|\bCopyright)', ending_text_no_links.strip()))
+    # Strip common trailing photo credits, citations, and media signatures (e.g. 사진=한경DB, 충청매일 CCDN, 연합뉴스 자료사진)
+    trailing_caption_patterns = [
+        r'(?:사진|자료|출처|그래픽)\s*=\s*[가-힣A-Za-z0-9\s]+$',
+        r'[가-힣A-Za-z0-9\s]+(?:사진|자료사진|제공|DB)\s*$',
+        r'전문보기\s*:?\s*$',
+        r'충청매일\s*CCDN\s*$',
+        r'한경\s*DB\s*$',
+        r'키움증권\s*$',
+        r'후원하기\s*$'
+    ]
+    trimmed_ending = ending_text_clean.strip()
+    for cap_pat in trailing_caption_patterns:
+        trimmed_ending = re.sub(cap_pat, '', trimmed_ending, flags=re.IGNORECASE).strip()
+    
+    # Valid ending signals:
+    # 1. Standard punctuation (. ? ! " ')
+    # 2. News/Broadcast predicates (습니다, 합니다, 입니다, 바랍니다, 보였습니다, 나타났습니다, 올랐습니다, 하락했습니다, 집계됐습니다, 설명했다, 밝혔다 등)
+    # 3. Reporter byline / email / copyright
+    # 4. Market numbers/units (% , 원, 선, 포인트, 상승, 하락, 거래 등)
+    valid_ending_pattern = r'([.?!]\s*[\"\'”’]?\s*$|(?:습니다|합니다|입니다|바랍니다|보였습니다|나타났습니다|기록했습니다|올랐습니다|내렸습니다|집계됐습니다|밝혔습니다|전망입니다|풀이됩니다|설명했다|밝혔다|전했다|말했다|본다)\s*[\"\'”’]?\s*$|기자\s*=?|@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}|\b[ⓒ©]|\bCopyright|(?:%|원|선|포인트|상승|하락|마감|거래|순|기록|수준)\s*$)'
+    has_valid_ending = bool(re.search(valid_ending_pattern, trimmed_ending))
     detail["has_valid_ending"] = has_valid_ending
     
-    # If it does NOT have a valid ending even after stripping links, we suspect truncation
+    # If it does NOT have a valid ending even after stripping links and recognizing predicates, suspect truncation
     if not has_valid_ending:
-        penalty = -10 # Relaxed penalty for truncated ending (was -25)
+        penalty = -10 # Relaxed penalty for truncated ending
         score += penalty
         detail["truncation_penalty"] = penalty
+
 
     # === NEW: Domain Whitelist / Short News Bypass (Case 1) ===
     # If it's a short text but has a valid ending and looks like a real news (e.g., from Naver, KBS, etc.)
