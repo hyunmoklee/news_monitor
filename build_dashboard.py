@@ -81,18 +81,24 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
     extract_needs_review = sum(1 for a in extracted_articles if a["needs_review"])
     extract_scores = [a["quality_score"] for a in extracted_articles if a["quality_score"] is not None]
     extract_avg_score = round(sum(extract_scores) / len(extract_scores), 1) if extract_scores else 0.0
-
+    
+    # Market filter stats
+    market_company_count = sum(1 for a in raw_articles if not a.get("is_market_news", False) and not a.get("is_exact_dup", False))
+    market_news_count = sum(1 for a in raw_articles if a.get("is_market_news", False) or a.get("is_exact_dup", False))
+    
     # 2. Fetch DATA PREPROCESSING RESULT (processed_articles)
     cursor.execute("""
-        SELECT url, title, media_name, journalist, cleaned_body, summary, keyword, category, published_at, processed_at, extra_meta 
-        FROM processed_articles 
+        SELECT p.url, p.title, p.media_name, p.journalist, p.cleaned_body, p.summary, p.keyword, p.category, p.published_at, p.processed_at, p.extra_meta,
+               a.is_exact_dup, a.is_market_news, a.market_score, a.llm_status
+        FROM processed_articles p
+        LEFT JOIN articles a ON p.url = a.url
         ORDER BY 
             CASE 
-                WHEN category = 'MASTER' THEN 1 
-                WHEN category = 'DUPLICATE' THEN 2 
+                WHEN p.category = 'MASTER' THEN 1 
+                WHEN p.category = 'DUPLICATE' THEN 2 
                 ELSE 3 
             END ASC,
-            published_at DESC
+            p.published_at DESC
     """)
     
     processed_articles = []
@@ -152,7 +158,11 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             "focus_eval": focus_eval,
             "focus_score": focus_eval.get("focus_score", 0),
             "focus_type": focus_type,
-            "audit_trail": meta
+            "audit_trail": meta,
+            "is_exact_dup": bool(r_dict.get("is_exact_dup", 0)),
+            "is_market_news": bool(r_dict.get("is_market_news", 0)),
+            "market_score": r_dict.get("market_score", 0),
+            "llm_status": r_dict.get("llm_status", "n/a")
         })
         
     proc_total = len(processed_articles)
@@ -758,13 +768,22 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
         <!-- Summary Grid (Processed) -->
         <div id="processedSummary" class="summary-grid">
-            <div class="summary-card">
-                <div class="summary-icon" style="background: rgba(168, 85, 247, 0.15); color: var(--proc-accent);">
-                    <i class="fa-solid fa-chart-pie"></i>
+            <div class="summary-card" style="border-left: 3px solid #10b981; background: rgba(16, 185, 129, 0.08);">
+                <div class="summary-icon" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">
+                    <i class="fa-solid fa-building-circle-check"></i>
                 </div>
                 <div class="summary-info">
-                    <div class="label">총 전처리 기사</div>
-                    <div class="value">{proc_total} <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
+                    <div class="label" style="color:#10b981; font-weight:700;">🏢 기업 핵심 기사 (Smart Filtered)</div>
+                    <div class="value" style="color: #10b981;">{market_company_count} <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
+                </div>
+            </div>
+            <div class="summary-card" style="border-left: 3px solid #f97316; opacity:0.85;">
+                <div class="summary-icon" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">
+                    <i class="fa-solid fa-chart-line"></i>
+                </div>
+                <div class="summary-info">
+                    <div class="label">📈 단순 시황/종목나열 배제</div>
+                    <div class="value" style="color: #f97316;">{market_news_count} <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
                 </div>
             </div>
             <div class="summary-card" style="border-left: 3px solid var(--master-color);">
@@ -795,24 +814,16 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 </div>
             </div>
             <div class="summary-card">
-                <div class="summary-icon" style="background: var(--dup-bg); color: var(--dup-color);">
-                    <i class="fa-solid fa-copy"></i>
+                <div class="summary-icon" style="background: rgba(168, 85, 247, 0.15); color: var(--proc-accent);">
+                    <i class="fa-solid fa-layer-group"></i>
                 </div>
                 <div class="summary-info">
-                    <div class="label">📑 DUPLICATE (중복 배제)</div>
-                    <div class="value" style="color: var(--dup-color);">{proc_dup} <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
-                </div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-icon" style="background: var(--filtered-bg); color: var(--filtered-color);">
-                    <i class="fa-solid fa-filter-circle-xmark"></i>
-                </div>
-                <div class="summary-info">
-                    <div class="label">🗑️ FILTERED (필터링)</div>
-                    <div class="value" style="color: var(--filtered-color);">{proc_filtered} <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
+                    <div class="label">전체 수집 기사</div>
+                    <div class="value">{proc_total} <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
                 </div>
             </div>
         </div>
+
 
         <!-- Summary Grid (Extraction) -->
         <div id="extractionSummary" class="summary-grid" style="display:none;">
@@ -861,7 +872,9 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 <input type="text" id="searchInput" placeholder="제목, 언론사, 기자, 핵심 내용 검색..." oninput="handleSearch()">
             </div>
             <div class="filter-group" id="procFilterGroup">
-                <button class="filter-btn active" onclick="setProcFilter('ALL')">전체보기</button>
+                <button class="filter-btn active" onclick="setProcFilter('COMPANY_CORE')">🏢 기업 핵심 기사 ({market_company_count}건)</button>
+                <button class="filter-btn" onclick="setProcFilter('ALL')">📋 전체 기사 ({proc_total}건)</button>
+                <button class="filter-btn" onclick="setProcFilter('MARKET_NEWS')">📈 단순 시황 배제 ({market_news_count}건)</button>
                 <button class="filter-btn" onclick="setProcFilter('MASTER')">🌟 MASTER 핵심</button>
                 <button class="filter-btn" onclick="setProcFilter('SOLO')">🎯 SOLO 집중</button>
                 <button class="filter-btn" onclick="setProcFilter('GLOBAL')">🌐 GLOBAL</button>
@@ -907,8 +920,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                                 <th style="width: 90px; text-align: center;">품질 점수</th>
                                 <th style="width: 100px; text-align: center;">검토 상태</th>
                                 <th style="width: 22%;">검토 / 불일치 요약</th>
-                                <th style="width: 80px; text-align: center;">본문길이</th>
-                                <th style="width: 90px; text-align: center;">결과물</th>
+                                <th style="width: 80px; text-align: center;">상세</th>
                             </tr>
                         </thead>
                         <tbody id="extractTableBody"></tbody>
@@ -921,7 +933,10 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         <div id="rawSection" style="display:none;">
             <div class="table-container">
                 <div class="table-header-title">
-                    <h2><i class="fa-solid fa-database" style="color: var(--accent);"></i> 원천 수집 데이터 (Raw Articles)</h2>
+                    <h2>
+                        <i class="fa-solid fa-database" style="color: var(--accent);"></i>
+                        원천 수집 기사 메타데이터 목록 (Raw Data)
+                    </h2>
                     <span class="tab-badge" id="rawCountBadge">총 0건</span>
                 </div>
                 <div class="table-responsive">
@@ -929,11 +944,13 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                         <thead>
                             <tr>
                                 <th style="width: 50px; text-align: center;">No.</th>
-                                <th>기사 제목</th>
+                                <th style="width: 35%;">기사 제목 (Title)</th>
                                 <th style="width: 120px; text-align: center;">언론사</th>
                                 <th style="width: 100px; text-align: center;">기자</th>
-                                <th>본문 미리보기</th>
-                                <th style="width: 140px; text-align: center;">발행일시</th>
+                                <th style="width: 140px; text-align: center;">발행시각</th>
+                                <th style="width: 90px; text-align: center;">글자수</th>
+                                <th style="width: 100px; text-align: center;">HTML보유</th>
+                                <th style="width: 90px; text-align: center;">원문링크</th>
                             </tr>
                         </thead>
                         <tbody id="rawTableBody"></tbody>
@@ -943,34 +960,24 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         </div>
     </div>
 
-    <!-- Modal for Extracted Article Full Inspection -->
+    <!-- Modal for Extraction Detail -->
     <div class="modal-overlay" id="detailModal" onclick="if(event.target===this) closeModal()">
         <div class="modal-card">
             <div class="modal-header">
-                <div style="max-width: 85%;">
-                    <h3 id="modalTitle" style="font-size:1.15rem; font-weight:700; margin-bottom:0.35rem; line-height:1.4;">기사 세부 정보</h3>
+                <div>
+                    <h3 id="modalTitle" style="font-size:1.15rem; font-weight:700; color:var(--text-primary); margin-bottom:0.3rem;">기사 상세 검증 리포트</h3>
                     <p id="modalMeta" style="font-size:0.82rem; color:var(--text-secondary);"></p>
                 </div>
                 <button class="modal-close" onclick="closeModal()"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal-body">
                 <div>
-                    <h4 style="color:var(--accent); font-size:0.95rem; margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem;">
-                        <i class="fa-solid fa-chart-simple"></i> Quality Score Breakdown
-                    </h4>
-                    <div id="modalScoreBox" style="background:rgba(15,23,42,0.6); padding:1rem; border-radius:8px; border:1px solid var(--border);"></div>
-                    
-                    <h4 style="color:var(--text-primary); font-size:0.95rem; margin-top:1.25rem; margin-bottom:0.5rem;">
-                        <i class="fa-solid fa-circle-info"></i> 검증 메타데이터
-                    </h4>
-                    <div id="modalValidationBox" style="background:rgba(15,23,42,0.6); padding:1rem; border-radius:8px; font-size:0.83rem; line-height:1.6; border:1px solid var(--border); color:var(--text-secondary);"></div>
+                    <h4 style="font-size:0.9rem; font-weight:700; color:var(--accent); margin-bottom:0.75rem;"><i class="fa-solid fa-list-check"></i> 품질 점수 채점표</h4>
+                    <div id="modalScoreTable" style="display:flex; flex-direction:column; gap:0.4rem; font-size:0.85rem;"></div>
                 </div>
                 <div>
-                    <h4 style="color:var(--master-color); font-size:0.95rem; margin-bottom:0.75rem; display:flex; align-items:center; justify-content:space-between;">
-                        <span><i class="fa-solid fa-file-lines"></i> 추출된 기사 본문 전문 (Clean Body)</span>
-                        <span id="modalCharCount" style="font-size:0.78rem; font-weight:normal; color:var(--text-secondary);"></span>
-                    </h4>
-                    <div id="modalContentBox" style="background:rgba(15,23,42,0.85); padding:1.2rem; border-radius:8px; border:1px solid var(--border); font-size:0.88rem; line-height:1.75; white-space:pre-wrap; max-height:450px; overflow-y:auto; color:#f1f5f9;"></div>
+                    <h4 style="font-size:0.9rem; font-weight:700; color:var(--accent); margin-bottom:0.75rem;"><i class="fa-solid fa-file-lines"></i> 추출 본문 미리보기</h4>
+                    <div id="modalBodyPreview" style="background:rgba(15,23,42,0.8); border:1px solid var(--border); border-radius:var(--radius-md); padding:0.9rem; max-height:360px; overflow-y:auto; font-size:0.83rem; line-height:1.65; white-space:pre-wrap; color:#cbd5e1;"></div>
                 </div>
             </div>
         </div>
@@ -982,7 +989,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         const extractArticles = {extract_articles_json};
 
         let currentTab = 'PROCESSED';
-        let procFilter = 'ALL';
+        let procFilter = 'COMPANY_CORE';
         let extractFilter = 'ALL';
         let searchQuery = '';
         let currentExtractList = [];
@@ -1010,7 +1017,9 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             procFilter = f;
             document.querySelectorAll('#procFilterGroup .filter-btn').forEach(btn => {{
                 btn.classList.toggle('active', 
-                    (f === 'ALL' && btn.innerText.includes('전체')) ||
+                    (f === 'COMPANY_CORE' && btn.innerText.includes('기업 핵심')) ||
+                    (f === 'ALL' && btn.innerText.includes('전체 기사')) ||
+                    (f === 'MARKET_NEWS' && btn.innerText.includes('단순 시황')) ||
                     (f === 'MASTER' && btn.innerText.includes('MASTER')) ||
                     (f === 'SOLO' && btn.innerText.includes('SOLO')) ||
                     (f === 'GLOBAL' && btn.innerText.includes('GLOBAL')) ||
@@ -1053,7 +1062,9 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             let list = procArticles;
 
             if (procFilter !== 'ALL') {{
-                if (procFilter === 'MASTER') list = list.filter(a => a.category === 'MASTER');
+                if (procFilter === 'COMPANY_CORE') list = list.filter(a => !a.is_market_news && !a.is_exact_dup);
+                else if (procFilter === 'MARKET_NEWS') list = list.filter(a => a.is_market_news || a.is_exact_dup);
+                else if (procFilter === 'MASTER') list = list.filter(a => a.category === 'MASTER');
                 else if (procFilter === 'DUPLICATE') list = list.filter(a => a.category === 'DUPLICATE');
                 else if (procFilter === 'FILTERED') list = list.filter(a => a.category === 'FILTERED');
                 else if (procFilter === 'SOLO') list = list.filter(a => a.focus_type === 'EXCLUSIVE_SOLO');
@@ -1074,12 +1085,24 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             list.forEach((item, idx) => {{
                 const card = document.createElement('div');
                 card.className = 'article-card';
+                if (item.is_market_news || item.is_exact_dup) {{
+                    card.style.opacity = '0.78';
+                    card.style.borderLeft = '3px solid #f97316';
+                }} else {{
+                    card.style.borderLeft = '3px solid #10b981';
+                }}
 
                 const cat = item.category || 'MASTER';
                 const catClass = cat === 'MASTER' ? 'cat-master' : (cat === 'DUPLICATE' ? 'cat-dup' : 'cat-filtered');
                 const catIcon = cat === 'MASTER' ? 'fa-star' : (cat === 'DUPLICATE' ? 'fa-copy' : 'fa-filter');
 
                 let tagsHtml = '';
+                if (!item.is_market_news && !item.is_exact_dup) {{
+                    tagsHtml += `<span style="padding:0.18rem 0.55rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(16,185,129,0.2); color:#10b981; border:1px solid rgba(16,185,129,0.4);"><i class="fa-solid fa-building-circle-check"></i> 🏢 기업 핵심 (스코어: ${{item.market_score}}점)</span> `;
+                }} else {{
+                    tagsHtml += `<span style="padding:0.18rem 0.55rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.4);"><i class="fa-solid fa-chart-line"></i> 📈 단순시황/배제 (스코어: ${{item.market_score}}점)</span> `;
+                }}
+
                 if (item.focus_type === 'EXCLUSIVE_SOLO') {{
                     tagsHtml += '<span style="padding:0.15rem 0.5rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:var(--solo-bg); color:var(--solo-color); border:1px solid rgba(20,184,166,0.3);">🎯 SOLO 단독</span> ';
                 }}
