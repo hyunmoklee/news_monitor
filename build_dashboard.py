@@ -25,10 +25,12 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         SELECT url, title, media_name, journalist, author, body, chosen_text, keyword, 
                raw_html, raw_html_hash, publisher_domain, pipeline_version, 
                extraction_method, quality_score, quality_score_detail, 
-               needs_review, mismatch_reason, published_at, created_at, processed_at
+               needs_review, mismatch_reason, published_at, created_at, processed_at,
+               is_exact_dup, is_market_news, market_score, llm_status, scoring_version, market_processed_at
         FROM articles 
         ORDER BY published_at DESC, created_at DESC
     """)
+
     
     raw_articles = []
     extracted_articles = []
