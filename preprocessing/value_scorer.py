@@ -66,8 +66,13 @@ def compute_value_score(article: Dict[str, Any], config: Dict[str, Any]) -> Dict
     if clean_audit.get("has_noise"):
         purity_penalty += noise_penalty
     total_target_mentions = sum(body.count(term) for term in all_targets)
-    if len(body) > 4000 and total_target_mentions < 3:
+    # [Requirement 4 & 5] Universal Mention Density Penalty:
+    # 1,000자당 타깃 기업 언급 횟수가 1.0회 미만인 경우 강력한 희석 페널티(-25점) 부과 (매직넘버 삭제)
+    mention_density = (total_target_mentions / (len(body) / 1000.0)) if len(body) > 0 else 0.0
+    if mention_density < 1.0:
         purity_penalty += -25
+
+
         
     # 8. Length Bonus (capped at 10)
     length_score = min(len(body) / 150.0, 10.0)

@@ -3,12 +3,14 @@ dedup:
   title_jaccard_threshold: 0.85
   window_hours: 72
 llm:
-  max_retries: 2
+  max_retries: 3
   model: gemini-2.5-flash-lite
   provider: google
   rate_limit_sleep: 4.2
   temperature: 0.0
-  timeout_seconds: 5.0
+  timeout_seconds: 15.0
+  fallback_action: manual_queue
+
 market_jargon:
   fluctuation_keywords:
   - 상승
@@ -52,9 +54,11 @@ targets:
     - 수주
     - 수소터빈
 thresholds:
-  T1_company_cutoff: 5
+  T1_company_cutoff: -20
   T2_market_cutoff: 20
-version: v1.1
+version: v1.2
+
+
 weights:
   F1_title_market_regex: 40
   F2_proximity_words: 5

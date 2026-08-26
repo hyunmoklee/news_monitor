@@ -591,63 +591,35 @@
         </div>
 
         <!-- Summary Grid (Processed) -->
-        <div id="processedSummary" class="summary-grid">
-            <div class="summary-card" style="border-left: 3px solid #10b981; background: rgba(16, 185, 129, 0.08);">
+        <div id="processedSummary" class="summary-grid" style="grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));">
+            <div class="summary-card" style="border-left: 4px solid #10b981; background: rgba(16, 185, 129, 0.08);">
                 <div class="summary-icon" style="background: rgba(16, 185, 129, 0.2); color: #10b981;">
                     <i class="fa-solid fa-building-circle-check"></i>
                 </div>
                 <div class="summary-info">
                     <div class="label" style="color:#10b981; font-weight:700;">🏢 기업 핵심 기사 (Smart Filtered)</div>
-                    <div class="value" style="color: #10b981;">0 <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
+                    <div class="value" style="color: #10b981;">0 <span style="font-size:0.85rem; font-weight:normal;">건</span></div>
                 </div>
             </div>
-            <div class="summary-card" style="border-left: 3px solid #f97316; opacity:0.85;">
+            <div class="summary-card" style="border-left: 4px solid #f97316; background: rgba(249, 115, 22, 0.06);">
                 <div class="summary-icon" style="background: rgba(249, 115, 22, 0.15); color: #f97316;">
                     <i class="fa-solid fa-chart-line"></i>
                 </div>
                 <div class="summary-info">
-                    <div class="label">📈 단순 시황/종목나열 배제</div>
-                    <div class="value" style="color: #f97316;">0 <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
+                    <div class="label" style="color:#f97316; font-weight:700;">📈 단순 시황/종목나열 배제</div>
+                    <div class="value" style="color: #f97316;">0 <span style="font-size:0.85rem; font-weight:normal;">건</span></div>
                 </div>
             </div>
-            <div class="summary-card" style="border-left: 3px solid var(--master-color);">
-                <div class="summary-icon" style="background: var(--master-bg); color: var(--master-color);">
-                    <i class="fa-solid fa-star"></i>
-                </div>
-                <div class="summary-info">
-                    <div class="label">🌟 MASTER (핵심 기사)</div>
-                    <div class="value" style="color: var(--master-color);">0 <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
-                </div>
-            </div>
-            <div class="summary-card" style="border-left: 3px solid var(--solo-color);">
-                <div class="summary-icon" style="background: var(--solo-bg); color: var(--solo-color);">
-                    <i class="fa-solid fa-bullseye"></i>
-                </div>
-                <div class="summary-info">
-                    <div class="label">🎯 SOLO (단독 집중 기사)</div>
-                    <div class="value" style="color: var(--solo-color);">0 <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
-                </div>
-            </div>
-            <div class="summary-card" style="border-left: 3px solid var(--global-color);">
-                <div class="summary-icon" style="background: var(--global-bg); color: var(--global-color);">
-                    <i class="fa-solid fa-globe"></i>
-                </div>
-                <div class="summary-info">
-                    <div class="label">🌐 GLOBAL (해외 투자추천)</div>
-                    <div class="value" style="color: #60a5fa;">0 <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
-                </div>
-            </div>
-            <div class="summary-card">
-                <div class="summary-icon" style="background: rgba(168, 85, 247, 0.15); color: var(--proc-accent);">
+            <div class="summary-card" style="border-left: 4px solid var(--accent); background: rgba(56, 189, 248, 0.06);">
+                <div class="summary-icon" style="background: rgba(56, 189, 248, 0.15); color: var(--accent);">
                     <i class="fa-solid fa-layer-group"></i>
                 </div>
                 <div class="summary-info">
-                    <div class="label">전체 수집 기사</div>
-                    <div class="value">0 <span style="font-size:0.8rem; font-weight:normal;">건</span></div>
+                    <div class="label">📋 전체 수집 기사</div>
+                    <div class="value">0 <span style="font-size:0.85rem; font-weight:normal;">건</span></div>
                 </div>
             </div>
         </div>
-
 
         <!-- Summary Grid (Extraction) -->
         <div id="extractionSummary" class="summary-grid" style="display:none;">
@@ -693,18 +665,14 @@
         <div class="control-panel">
             <div class="search-box">
                 <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted);"></i>
-                <input type="text" id="searchInput" placeholder="제목, 언론사, 기자, 핵심 내용 검색..." oninput="handleSearch()">
+                <input type="text" id="searchInput" placeholder="제목, 언론사, 기자, 본문 검색..." oninput="handleSearch()">
             </div>
             <div class="filter-group" id="procFilterGroup">
                 <button class="filter-btn active" onclick="setProcFilter('COMPANY_CORE')">🏢 기업 핵심 기사 (0건)</button>
-                <button class="filter-btn" onclick="setProcFilter('ALL')">📋 전체 기사 (0건)</button>
                 <button class="filter-btn" onclick="setProcFilter('MARKET_NEWS')">📈 단순 시황 배제 (0건)</button>
-                <button class="filter-btn" onclick="setProcFilter('MASTER')">🌟 MASTER 핵심</button>
-                <button class="filter-btn" onclick="setProcFilter('SOLO')">🎯 SOLO 집중</button>
-                <button class="filter-btn" onclick="setProcFilter('GLOBAL')">🌐 GLOBAL</button>
-                <button class="filter-btn" onclick="setProcFilter('DUPLICATE')">📑 DUPLICATE</button>
-                <button class="filter-btn" onclick="setProcFilter('FILTERED')">🗑️ FILTERED</button>
+                <button class="filter-btn" onclick="setProcFilter('ALL')">📋 전체 기사 (0건)</button>
             </div>
+
             <div class="filter-group" id="extractFilterGroup" style="display:none;">
                 <button class="filter-btn active" onclick="setExtractFilter('ALL')">전체보기</button>
                 <button class="filter-btn" onclick="setExtractFilter('NEEDS_REVIEW')">⚠️ 검토 필요만</button>
@@ -928,22 +896,11 @@
             document.getElementById('procCountBadge').innerText = `총 ${list.length}건`;
 
             list.forEach((item, idx) => {
-                const cat = item.category || 'MASTER';
-                const catClass = cat === 'MASTER' ? 'cat-master' : (cat === 'DUPLICATE' ? 'cat-dup' : 'cat-filtered');
-                const catIcon = cat === 'MASTER' ? 'fa-star' : (cat === 'DUPLICATE' ? 'fa-copy' : 'fa-filter');
-
                 let tagsHtml = '';
                 if (!item.is_market_news && !item.is_exact_dup) {
-                    tagsHtml += `<div style="padding:0.2rem 0.5rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(16,185,129,0.2); color:#10b981; border:1px solid rgba(16,185,129,0.4); margin-bottom:0.3rem;"><i class="fa-solid fa-building-circle-check"></i> 🏢 기업 핵심</div>`;
+                    tagsHtml = `<div style="padding:0.3rem 0.6rem; border-radius:6px; font-size:0.75rem; font-weight:700; background:rgba(16,185,129,0.2); color:#10b981; border:1px solid rgba(16,185,129,0.4); display:inline-flex; align-items:center; gap:0.3rem;"><i class="fa-solid fa-building-circle-check"></i> 🏢 기업 핵심 기사</div>`;
                 } else {
-                    tagsHtml += `<div style="padding:0.2rem 0.5rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.4); margin-bottom:0.3rem;"><i class="fa-solid fa-chart-line"></i> 📈 단순 시황</div>`;
-                }
-
-                if (item.focus_type === 'EXCLUSIVE_SOLO') {
-                    tagsHtml += '<div style="padding:0.15rem 0.4rem; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--solo-bg); color:var(--solo-color); margin-top:0.2rem;">🎯 SOLO 단독</div>';
-                }
-                if (item.is_global_relevant) {
-                    tagsHtml += '<div style="padding:0.15rem 0.4rem; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--global-bg); color:#60a5fa; margin-top:0.2rem;">🌐 GLOBAL 투자</div>';
+                    tagsHtml = `<div style="padding:0.3rem 0.6rem; border-radius:6px; font-size:0.75rem; font-weight:700; background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.4); display:inline-flex; align-items:center; gap:0.3rem;"><i class="fa-solid fa-chart-line"></i> 📈 단순 시황 배제</div>`;
                 }
 
                 const scoreColor = item.market_score <= -20 ? '#10b981' : (item.market_score > 15 ? '#f97316' : '#a855f7');
@@ -957,8 +914,8 @@
                     <td style="text-align: center; color: var(--text-muted); font-weight: 600;">${idx + 1}</td>
                     <td style="text-align: center;">
                         ${tagsHtml}
-                        <span class="cat-badge ${catClass}" style="font-size:0.72rem;"><i class="fa-solid ${catIcon}"></i> ${cat}</span>
                     </td>
+
                     <td>
                         <div style="font-weight: 700; font-size: 0.93rem; line-height: 1.45; margin-bottom: 0.35rem;">
                             <a href="${item.url}" target="_blank" style="color: #38bdf8; text-decoration: none;">${item.title}</a>

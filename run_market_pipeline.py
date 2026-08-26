@@ -78,7 +78,18 @@ async def execute_market_filter():
             # LLM Evaluation
             is_mkt, status = await call_gemini_fallback(t, lead_300, config)
             
+        # [Requirement 3] Short-Circuit Serialization:
+        # Compute value_score ONLY if is_mkt == False (Company Core).
+        # Skip value_score computation entirely for pure market news (is_mkt == True) to save CPU resources.
+        if not is_mkt:
+            from preprocessing.value_scorer import compute_value_score
+            val_result = compute_value_score({"title": t, "cleaned_body": body, "url": u, "media_name": art.get("media_name", "")}, config)
+            val_score = val_result.get("total_score", 0.0)
+        else:
+            val_score = 0.0  # Short-circuited
+            
         update_payloads.append((0, 1 if is_mkt else 0, score, status, curr_version, now_ts, u))
+
         
     # 4. BULK WRITE
     conn = sqlite3.connect(db_path)

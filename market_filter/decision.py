@@ -34,8 +34,8 @@ async def call_gemini_fallback(
         "generationConfig": {"temperature": 0.0, "responseMimeType": "application/json"}
     }
     
-    max_retries = config.get("llm", {}).get("max_retries", 2)
-    timeout = aiohttp.ClientTimeout(total=config.get("llm", {}).get("timeout_seconds", 5.0))
+    max_retries = config.get("llm", {}).get("max_retries", 3)
+    timeout = aiohttp.ClientTimeout(total=config.get("llm", {}).get("timeout_seconds", 15.0))
     
     for attempt in range(max_retries + 1):
         try:
@@ -47,22 +47,29 @@ async def call_gemini_fallback(
                         parsed = json.loads(text_resp)
                         is_mkt = bool(parsed.get("is_market_news", True))
                         return is_mkt, "success"
+                    elif resp.status >= 500:
+                        # Server Error -> Exponential Backoff
+                        if attempt < max_retries:
+                            await asyncio.sleep(2 ** attempt)
         except Exception:
             if attempt < max_retries:
                 await asyncio.sleep(2 ** attempt)
                 
-    return True, "failed"
+    # [State Transition: v1.2 New Policy]
+    # Scrap old fallback (is_market_news=True). Replace with manual review queue.
+    return None, "manual_review_needed"
 
 def evaluate_decision(
     market_score: int, 
     config: Dict
 ) -> Tuple[str, bool]:
-    t1 = config.get("thresholds", {}).get("T1_company_cutoff", -10)
+    t1 = config.get("thresholds", {}).get("T1_company_cutoff", -20)
     t2 = config.get("thresholds", {}).get("T2_market_cutoff", 20)
     
     if market_score < t1:
-        return "Group A", False  # 기업 기사 확정
+        return "Group A", False  # 기업 기사 확정 (Company Core)
     elif market_score > t2:
-        return "Group B", True   # 시황 기사 확정
+        return "Group B", True   # 시황 기사 확정 (Pure Market)
     else:
-        return "Group C", True   # 회색지대
+        return "Group C", None   # 회색지대 (Rule 미판정 -> LLM 위임 / Pending)
+
