@@ -66,10 +66,15 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             "needs_review": needs_rev,
             "mismatch_reason": r_dict.get("mismatch_reason") or ("품질 점수 미달 (85점 미만)" if needs_rev else "정상 추출"),
             "has_raw_html": bool(r_dict.get("raw_html")),
-            "raw_html_hash": r_dict.get("raw_html_hash") or "-"
+            "raw_html_hash": r_dict.get("raw_html_hash") or "-",
+            "is_exact_dup": bool(r_dict.get("is_exact_dup", 0)),
+            "is_market_news": bool(r_dict.get("is_market_news", 0)),
+            "market_score": r_dict.get("market_score", 0),
+            "llm_status": r_dict.get("llm_status", "n/a")
         }
         raw_articles.append(item)
         extracted_articles.append(item)
+
 
     raw_total = len(raw_articles)
     extract_total = len(extracted_articles)

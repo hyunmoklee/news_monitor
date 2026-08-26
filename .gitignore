@@ -32,8 +32,11 @@ target_*.json
 *_summary.txt
 user_feedback_*.json
 *_backup_*.db
+*.bak
+*.log
 
 # Environment variables
 .env
+
 
 

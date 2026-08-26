@@ -1,0 +1,65 @@
+dedup:
+  lead_jaccard_threshold: 0.85
+  title_jaccard_threshold: 0.85
+  window_hours: 72
+llm:
+  max_retries: 2
+  model: gemini-2.5-flash-lite
+  provider: google
+  rate_limit_sleep: 4.2
+  temperature: 0.0
+  timeout_seconds: 5.0
+market_jargon:
+  fluctuation_keywords:
+  - 상승
+  - 하락
+  - 급등
+  - 급락
+  - 보합
+  - 순매수
+  - 순매도
+  - 거래
+  - 포인트
+  - '%'
+  - 원
+  - 오름세
+  - 내림세
+  title_patterns:
+  - \b코스피\b.*(?:급락|급등|상승|하락|선|턱걸이|마감|회복|딛고|약세)
+  - \b코스닥\b.*(?:급락|급등|상승|하락|선|마감|회복|약세)
+  - \[(?:마감시황|장중시황|개장시황|어제장 오늘장|증시시황|오늘의증시|시황|마감|시황집중|이 시각 시황)\]
+  - (?:\b외인\b|\b기관\b|\b큰손\b|\b개미\b|\b동학개미\b|\b서학개미\b).*(?:순매수|순매도|사자|팔자|담았나|보유|최애주)
+  - (?:\b고액자산가\b|\b자산가\b|\b포트폴리오\b|\b뭘 담았나\b|\b보유 종목\b|\b최애주\b)
+  - (?:\b순환매\b|\b프리마켓\b|\b야간선물\b|\b증시캘린더\b|\b전약후강\b)
+  - (?:\b브랜드평판\b|\b아파트 브랜드\b)
+targets:
+  두산에너빌리티:
+    aliases:
+    - 두산에너빌리티
+    - 두산
+    - 에너빌리티
+    - 두산에너빌
+    - 두산중공업
+    business_keywords:
+    - 원전
+    - SMR
+    - 가스터빈
+    - 주기기
+    - 체코
+    - 풍력
+    - 해상풍력
+    - 원자력
+    - 수주
+    - 수소터빈
+thresholds:
+  T1_company_cutoff: 5
+  T2_market_cutoff: 20
+version: v1.1
+weights:
+  F1_title_market_regex: 40
+  F2_proximity_words: 5
+  F2_stock_density_cap: 50
+  F2_stock_density_unit: 10
+  F3_lead_target_mention: -30
+  F4_business_keyword_match: -30
+  F4_decay_ratio: 0.5
