@@ -714,14 +714,35 @@
             </div>
         </div>
 
-        <!-- Section 1: Processed Cards Grid -->
+        <!-- Section 1: Processed List Table -->
         <div id="processedSection">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
-                <h2 style="font-size:1.1rem; font-weight:700;"><i class="fa-solid fa-sparkles" style="color:var(--proc-accent);"></i> 전처리 기사 분석 결과물</h2>
-                <span class="tab-badge" id="procCountBadge">총 0건</span>
+            <div class="table-container">
+                <div class="table-header-title">
+                    <h2>
+                        <i class="fa-solid fa-layer-group" style="color: var(--proc-accent);"></i>
+                        전처리 기사 정밀 분석 목록 (Processed List View)
+                    </h2>
+                    <span class="tab-badge" id="procCountBadge">총 0건</span>
+                </div>
+                <div class="table-responsive">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th style="width: 45px; text-align: center;">No.</th>
+                                <th style="width: 175px; text-align: center;">스마트 분류 / 상태</th>
+                                <th style="width: 36%;">기사 제목 (Title) & 언론사</th>
+                                <th style="width: 32%;">AI 핵심 요약 & 전처리 사유</th>
+                                <th style="width: 80px; text-align: center;">시황점수</th>
+                                <th style="width: 80px; text-align: center;">가치점수</th>
+                                <th style="width: 75px; text-align: center;">본문</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processedTableBody"></tbody>
+                    </table>
+                </div>
             </div>
-            <div class="cards-grid" id="cardsGrid"></div>
         </div>
+
 
         <!-- Section 2: Extraction Table -->
         <div id="extractionSection" style="display:none;">
@@ -851,7 +872,7 @@
                     (f === 'FILTERED' && btn.innerText.includes('FILTERED'))
                 );
             });
-            renderProcessedCards();
+            renderProcessedTable();
         }
 
         function setExtractFilter(f) {
@@ -874,14 +895,14 @@
         }
 
         function renderView() {
-            if (currentTab === 'PROCESSED') renderProcessedCards();
+            if (currentTab === 'PROCESSED') renderProcessedTable();
             else if (currentTab === 'EXTRACTION') renderExtractionTable();
             else renderRawTable();
         }
 
-        function renderProcessedCards() {
-            const grid = document.getElementById('cardsGrid');
-            grid.innerHTML = '';
+        function renderProcessedTable() {
+            const tbody = document.getElementById('processedTableBody');
+            tbody.innerHTML = '';
 
             let list = procArticles;
 
@@ -907,63 +928,93 @@
             document.getElementById('procCountBadge').innerText = `총 ${list.length}건`;
 
             list.forEach((item, idx) => {
-                const card = document.createElement('div');
-                card.className = 'article-card';
-                if (item.is_market_news || item.is_exact_dup) {
-                    card.style.opacity = '0.78';
-                    card.style.borderLeft = '3px solid #f97316';
-                } else {
-                    card.style.borderLeft = '3px solid #10b981';
-                }
-
                 const cat = item.category || 'MASTER';
                 const catClass = cat === 'MASTER' ? 'cat-master' : (cat === 'DUPLICATE' ? 'cat-dup' : 'cat-filtered');
                 const catIcon = cat === 'MASTER' ? 'fa-star' : (cat === 'DUPLICATE' ? 'fa-copy' : 'fa-filter');
 
                 let tagsHtml = '';
                 if (!item.is_market_news && !item.is_exact_dup) {
-                    tagsHtml += `<span style="padding:0.18rem 0.55rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(16,185,129,0.2); color:#10b981; border:1px solid rgba(16,185,129,0.4);"><i class="fa-solid fa-building-circle-check"></i> 🏢 기업 핵심 (스코어: ${item.market_score}점)</span> `;
+                    tagsHtml += `<div style="padding:0.2rem 0.5rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(16,185,129,0.2); color:#10b981; border:1px solid rgba(16,185,129,0.4); margin-bottom:0.3rem;"><i class="fa-solid fa-building-circle-check"></i> 🏢 기업 핵심</div>`;
                 } else {
-                    tagsHtml += `<span style="padding:0.18rem 0.55rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.4);"><i class="fa-solid fa-chart-line"></i> 📈 단순시황/배제 (스코어: ${item.market_score}점)</span> `;
+                    tagsHtml += `<div style="padding:0.2rem 0.5rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:rgba(249,115,22,0.15); color:#f97316; border:1px solid rgba(249,115,22,0.4); margin-bottom:0.3rem;"><i class="fa-solid fa-chart-line"></i> 📈 단순 시황</div>`;
                 }
 
                 if (item.focus_type === 'EXCLUSIVE_SOLO') {
-                    tagsHtml += '<span style="padding:0.15rem 0.5rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:var(--solo-bg); color:var(--solo-color); border:1px solid rgba(20,184,166,0.3);">🎯 SOLO 단독</span> ';
+                    tagsHtml += '<div style="padding:0.15rem 0.4rem; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--solo-bg); color:var(--solo-color); margin-top:0.2rem;">🎯 SOLO 단독</div>';
                 }
                 if (item.is_global_relevant) {
-                    tagsHtml += '<span style="padding:0.15rem 0.5rem; border-radius:4px; font-size:0.72rem; font-weight:700; background:var(--global-bg); color:#60a5fa; border:1px solid rgba(59,130,246,0.3);">🌐 GLOBAL 투자</span> ';
+                    tagsHtml += '<div style="padding:0.15rem 0.4rem; border-radius:4px; font-size:0.7rem; font-weight:700; background:var(--global-bg); color:#60a5fa; margin-top:0.2rem;">🌐 GLOBAL 투자</div>';
                 }
 
-                card.innerHTML = `
-                    <div class="card-header">
-                        <div style="display:flex; align-items:center; gap:0.5rem;">
-                            <span class="cat-badge ${catClass}"><i class="fa-solid ${catIcon}"></i> ${cat}</span>
-                            ${tagsHtml}
+                const scoreColor = item.market_score <= -20 ? '#10b981' : (item.market_score > 15 ? '#f97316' : '#a855f7');
+
+                const tr = document.createElement('tr');
+                if (item.is_market_news || item.is_exact_dup) {
+                    tr.style.opacity = '0.78';
+                }
+
+                tr.innerHTML = `
+                    <td style="text-align: center; color: var(--text-muted); font-weight: 600;">${idx + 1}</td>
+                    <td style="text-align: center;">
+                        ${tagsHtml}
+                        <span class="cat-badge ${catClass}" style="font-size:0.72rem;"><i class="fa-solid ${catIcon}"></i> ${cat}</span>
+                    </td>
+                    <td>
+                        <div style="font-weight: 700; font-size: 0.93rem; line-height: 1.45; margin-bottom: 0.35rem;">
+                            <a href="${item.url}" target="_blank" style="color: #38bdf8; text-decoration: none;">${item.title}</a>
                         </div>
-                        <span style="font-size:0.8rem; color:var(--text-muted);">${item.published_at}</span>
-                    </div>
-                    <div class="card-title">
-                        <a href="${item.url}" target="_blank">${item.title}</a>
-                    </div>
-                    <div class="card-meta">
-                        <span><i class="fa-regular fa-newspaper"></i> ${item.media_name}</span>
-                        <span><i class="fa-regular fa-user"></i> ${item.journalist}</span>
-                        <span><i class="fa-solid fa-chart-line"></i> 가치점수: <strong>${item.value_score || 0}</strong></span>
-                    </div>
-                    <div class="summary-box">
-                        <strong style="color:var(--accent); display:block; margin-bottom:0.25rem;"><i class="fa-solid fa-robot"></i> AI 핵심 요약 & 전처리 사유:</strong>
-                        ${item.summary || item.final_reason || '요약 정보 없음'}
-                    </div>
-                    <div class="body-accordion">
-                        <button class="btn-toggle-body" onclick="toggleBody('body_${idx}', this)">
-                            <i class="fa-solid fa-chevron-down"></i> 정제된 기사 본문 전체 보기
+                        <div style="display: flex; gap: 0.8rem; font-size: 0.78rem; color: var(--text-secondary); flex-wrap: wrap;">
+                            <span><i class="fa-regular fa-newspaper"></i> ${item.media_name}</span>
+                            <span><i class="fa-regular fa-user"></i> ${item.journalist}</span>
+                            <span><i class="fa-regular fa-clock"></i> ${item.published_at}</span>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="summary-box" style="margin: 0; padding: 0.65rem 0.8rem; font-size: 0.82rem; line-height: 1.5; border-left: 2px solid var(--accent);">
+                            <strong style="color: var(--accent); font-size: 0.76rem; display: block; margin-bottom: 0.2rem;"><i class="fa-solid fa-robot"></i> AI 핵심 요약:</strong>
+                            ${item.summary || item.final_reason || '요약 정보 없음'}
+                        </div>
+                    </td>
+                    <td style="text-align: center; font-weight: 700; font-size: 0.95rem; color: ${scoreColor};">
+                        ${item.market_score || 0}점
+                    </td>
+                    <td style="text-align: center; font-weight: 700; font-size: 0.95rem; color: var(--accent);">
+                        ${item.value_score || 0}
+                    </td>
+                    <td style="text-align: center;">
+                        <button class="btn-detail" onclick="toggleRowBody('proc_body_${idx}', this)">
+                            <i class="fa-solid fa-file-lines"></i> 전문
                         </button>
-                        <div class="body-full-content" id="body_${idx}">${item.cleaned_body || '본문 없음'}</div>
-                    </div>
+                    </td>
                 `;
-                grid.appendChild(card);
+                tbody.appendChild(tr);
+
+                const trBody = document.createElement('tr');
+                trBody.id = `proc_body_${idx}`;
+                trBody.style.display = 'none';
+                trBody.style.background = 'rgba(15, 23, 42, 0.95)';
+                trBody.innerHTML = `
+                    <td colspan="7" style="padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);">
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+                            <strong style="color:var(--proc-accent); font-size:0.85rem;"><i class="fa-solid fa-wand-magic-sparkles"></i> 정제된 기사 본문 전문 (Clean Body):</strong>
+                            <span style="font-size:0.75rem; color:var(--text-muted);">${(item.cleaned_body || '').length}자</span>
+                        </div>
+                        <div style="background: rgba(15,23,42,0.8); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1rem; font-size: 0.85rem; line-height: 1.75; white-space: pre-wrap; max-height: 380px; overflow-y: auto; color: #e2e8f0;">${item.cleaned_body || '본문 정보가 없습니다.'}</div>
+                    </td>
+                `;
+                tbody.appendChild(trBody);
             });
         }
+
+        function toggleRowBody(rowId, btn) {
+            const row = document.getElementById(rowId);
+            const isShown = row.style.display === 'table-row';
+            row.style.display = isShown ? 'none' : 'table-row';
+            btn.innerHTML = isShown 
+                ? '<i class="fa-solid fa-file-lines"></i> 전문' 
+                : '<i class="fa-solid fa-chevron-up"></i> 접기';
+        }
+
 
         function toggleBody(id, btn) {
             const box = document.getElementById(id);
