@@ -248,9 +248,10 @@ async def execute_backfill(
                 is_mkt, status = None, "manual_review_needed"
                 llm_failure_count += 1
             else:
-                # Real LLM API Call
-                is_mkt, status = await call_gemini_fallback(t, lead_300, config)
+                # Real LLM API Call with full_body for intelligent context extraction
+                is_mkt, status = await call_gemini_fallback(t, lead_300, config, full_body=body)
                 if status != "success":
+
                     llm_failure_count += 1
                     is_mkt = None
                     status = "manual_review_needed"
