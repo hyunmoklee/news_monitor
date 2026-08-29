@@ -13,12 +13,8 @@ async def call_gemini_fallback(
     config: Dict,
     api_key: str = None
 ) -> Tuple[bool, str]:
-    if not api_key:
-        api_key = os.getenv("GEMINI_API_KEY", "")
-        
-    if not api_key:
-        return True, "failed"
-        
+    from config import get_gemini_client, DEFAULT_GEMINI_MODEL
+    
     prompt = (
         f"당신은 금융 뉴스 분석기입니다.\n"
         f"기사 제목: {title}\n"
@@ -28,36 +24,38 @@ async def call_gemini_fallback(
         f"반드시 JSON 형식으로만 응답하세요: {{\"is_market_news\": boolean, \"reason\": string}}"
     )
     
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:generateContent?key={api_key}"
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.0, "responseMimeType": "application/json"}
-    }
-    
+    model_name = config.get("llm", {}).get("model", DEFAULT_GEMINI_MODEL)
     max_retries = config.get("llm", {}).get("max_retries", 3)
-    timeout = aiohttp.ClientTimeout(total=config.get("llm", {}).get("timeout_seconds", 15.0))
     
+    try:
+        client = get_gemini_client()
+    except Exception as e:
+        return None, "manual_review_needed"
+        
     for attempt in range(max_retries + 1):
         try:
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.post(url, json=payload) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        text_resp = data["candidates"][0]["content"]["parts"][0]["text"]
-                        parsed = json.loads(text_resp)
-                        is_mkt = bool(parsed.get("is_market_news", True))
-                        return is_mkt, "success"
-                    elif resp.status >= 500:
-                        # Server Error -> Exponential Backoff
-                        if attempt < max_retries:
-                            await asyncio.sleep(2 ** attempt)
-        except Exception:
+            # google-genai async call
+            response = await client.aio.models.generate_content(
+                model=model_name,
+                contents=prompt,
+                config={
+                    "temperature": 0.0,
+                    "response_mime_type": "application/json"
+                }
+            )
+            
+            text_resp = (response.text or "").strip()
+            parsed = json.loads(text_resp)
+            is_mkt = bool(parsed.get("is_market_news", True))
+            return is_mkt, "success"
+        except Exception as e:
             if attempt < max_retries:
                 await asyncio.sleep(2 ** attempt)
                 
     # [State Transition: v1.2 New Policy]
     # Scrap old fallback (is_market_news=True). Replace with manual review queue.
     return None, "manual_review_needed"
+
 
 def evaluate_decision(
     market_score: int, 

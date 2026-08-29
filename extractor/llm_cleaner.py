@@ -47,27 +47,22 @@ def clean_with_gemini(
             "cost_usd": 0.0
         }
 
-    key = api_key or os.getenv("GEMINI_API_KEY", "")
-    if not key:
-        return {
-            "cleaned_text": clean_original,
-            "needs_review": True,
-            "success": False,
-            "reason": "missing_api_key",
-            "tokens_used": 0,
-            "cost_usd": 0.0
-        }
-
+    from config import get_gemini_client, DEFAULT_GEMINI_MODEL
+    model_to_use = model_name or DEFAULT_GEMINI_MODEL
     prompt = STRICT_CLEANER_PROMPT.format(candidate_text=clean_original)
 
     try:
-        from google import genai
-        client = genai.Client(api_key=key)
+        if api_key:
+            from google import genai
+            client = genai.Client(api_key=api_key)
+        else:
+            client = get_gemini_client()
         
         response = client.models.generate_content(
-            model=model_name,
+            model=model_to_use,
             contents=prompt,
         )
+
         
         cleaned_output = (response.text or "").strip()
         
