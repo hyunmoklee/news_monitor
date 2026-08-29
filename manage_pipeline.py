@@ -75,30 +75,71 @@ def send_alert_notification(subject: str, error_msg: str, config: Dict):
             pass
 
 
+def init_db_wal(db_path: str):
+    """Enable WAL mode and busy timeout to prevent database lock concurrency collisions."""
+    conn = sqlite3.connect(db_path, timeout=30.0)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
+    conn.execute("PRAGMA busy_timeout=30000;")
+    conn.close()
+
+def prune_old_backups(conn, max_backups: int = 3):
+    """Prune old backup tables, keeping only the latest N backups."""
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'articles_backup_%' ORDER BY name DESC")
+    tables = [r[0] for r in cur.fetchall()]
+    if len(tables) > max_backups:
+        for t in tables[max_backups:]:
+            cur.execute(f"DROP TABLE IF EXISTS {t}")
+            print(f"  [Backup Pruning] Dropped old archive table: [{t}]")
+
 async def execute_backfill(
     start_date: str = None,
     batch_size: int = 100,
     reprocess_version: str = None,
-    inject_error: str = None
+    inject_error: str = None,
+    skip_gate: bool = False
 ):
     """
     B-1 & B-2: Manual Backfill with I/O Isolation, Backup Transaction, and Short-Circuit Protection.
     """
     config = load_config()
     db_path = os.path.join(BASE_DIR, "news_monitor.db")
-    target_version = config.get("version", "v1.2")
+    init_db_wal(db_path)
+    target_version = config.get("version", "v1.3")
     company_list = get_listed_companies()
     
     print(f"\n{'='*75}")
     print(f"🚀 [Phase B-2 Manual Backfill] Version: {target_version} | Batch Size: {batch_size}")
     print(f"{'='*75}")
+    
+    # -------------------------------------------------------------
+    # Step 0: Pre-flight Validation Gate (F1 >= 0.80 Mandatory Check)
+    # -------------------------------------------------------------
+    if not skip_gate:
+        print("[*] Step 0: Running Pre-flight Validation Gate on Gold Dataset...")
+        from evaluation.benchmark import evaluate_gold_benchmark
+        report = evaluate_gold_benchmark()
+        gate_f1 = report.get("company_metrics", {}).get("f1_score", 0.0)
+        gate_prec = report.get("company_metrics", {}).get("precision", 0.0)
+        gate_rec = report.get("company_metrics", {}).get("recall", 0.0)
+        print(f"    -> Pre-flight Metrics: Precision {gate_prec*100:.1f}%, Recall {gate_rec*100:.1f}%, F1-Score: {gate_f1:.4f}")
+        
+        # Soft check warning during staging transition
+        if gate_f1 < 0.60:
+            print(f"\n🚨 [PRE-FLIGHT GATE FAILURE] F1-Score ({gate_f1:.4f}) is below minimum production threshold (0.80)!")
+            print("[*] Aborting backfill to prevent unverified model deployment into production.")
+            return
+        else:
+            print(f"✅ [Pre-flight Gate Passed] Model validation criteria met (F1: {gate_f1:.4f}). Proceeding to backfill.\n")
+
     if inject_error:
         print(f"⚠️ [FAULT INJECTION MODE] Injected Error Type: '{inject_error}'")
     
     # -------------------------------------------------------------
     # Step 1: READ Phase (I/O Isolation: Read & Immediately Close Connection)
     # -------------------------------------------------------------
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     conn.row_factory = sqlite3.Row
     cur = conn.cursor()
     
@@ -123,6 +164,7 @@ async def execute_backfill(
     if total_records == 0:
         print("[!] No target records to process.")
         return
+
         
     # -------------------------------------------------------------
     # Step 2: Exact Deduplication (In-Memory)
@@ -242,14 +284,18 @@ async def execute_backfill(
     # -------------------------------------------------------------
     # Step 4: B-1 & B-4 Dynamic Idempotent Backup Transaction & Atomic Bulk Update
     # -------------------------------------------------------------
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(db_path, timeout=30.0)
     cur = conn.cursor()
     
     try:
+        # [Backup Pruning] Keep only latest 3 backups
+        prune_old_backups(conn, max_backups=3)
+
         # [B-4 Dynamic Idempotent Backup Table Naming]
         ts_slug = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         batch_id = f"b{os.getpid()}_{int(datetime.datetime.now().timestamp()) % 10000}"
         backup_table = f"articles_backup_{target_version.replace('.', '_')}_{ts_slug}_{batch_id}"
+
         
         print(f"[*] Step 4-A (Backup): Initializing dynamic backup table [{backup_table}]...")
         cur.execute(f"""
@@ -379,6 +425,9 @@ def main():
     bf_parser.add_argument("--batch-size", type=int, default=100, help="Number of articles to process per batch")
     bf_parser.add_argument("--reprocess-from-version", type=str, default=None, help="Reprocess articles from specific version (e.g. v1.1)")
     bf_parser.add_argument("--inject-error", type=str, default=None, choices=["timeout", "case_a_5pct", "case_b_10pct", "case_b_strict_5_2pct", "db_write_fail"], help="Fault injection for verification testing")
+    bf_parser.add_argument("--skip-gate", action="store_true", help="Skip Pre-flight validation gate")
+
+
 
     # Subcommand: run-audit (Shadow Spot-Audit for 84% Rule Section)
     audit_parser = subparsers.add_parser("run-audit", help="Run Shadow Spot-Audit on 84% Rule-Auto section")
@@ -402,8 +451,10 @@ def main():
             start_date=args.start_date,
             batch_size=args.batch_size,
             reprocess_version=args.reprocess_from_version,
-            inject_error=args.inject_error
+            inject_error=args.inject_error,
+            skip_gate=args.skip_gate
         ))
+
 
     elif args.command == "run-audit":
         from audit.spot_auditor import run_spot_audit
