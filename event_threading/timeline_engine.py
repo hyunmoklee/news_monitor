@@ -66,7 +66,7 @@ def build_event_threads(
     cur = conn.cursor()
     
     cur.execute("""
-        SELECT url, title, body, chosen_text, published_at, created_at, media_name
+        SELECT url, title, body, chosen_text, published_at, created_at, media_name, structured_intelligence, event_category
         FROM articles
         WHERE is_market_news = 0 AND (is_exact_dup = 0 OR is_exact_dup IS NULL)
         ORDER BY published_at ASC
@@ -78,22 +78,39 @@ def build_event_threads(
         print("스레딩 대상 기업 핵심 기사가 없습니다.")
         return {"threads_count": 0, "articles_count": 0}
         
-    print(f"\n🧵 [Event Threading] Processing {len(rows)} company core articles with gemini-embedding-2...")
+    print(f"\n🧵 [Event Threading v2.0] Processing {len(rows)} company core articles with gemini-embedding-2 (Fact-guided)...")
     
+    import json
     articles = []
     for r in rows:
         title = r["title"]
-        lead = (r["body"] or r["chosen_text"] or "")[:200]
-        text_to_embed = f"{title}\n{lead}"
+        s_intel = {}
+        try:
+            if r["structured_intelligence"]:
+                s_intel = json.loads(r["structured_intelligence"])
+        except Exception:
+            pass
+
+        if s_intel and s_intel.get("executive_headline"):
+            h_line = s_intel.get("executive_headline")
+            cat = s_intel.get("event_category") or r.get("event_category") or ""
+            entities = ", ".join(s_intel.get("key_entities", []))
+            text_to_embed = f"[{cat}] {h_line}\n주요 주체: {entities}"
+        else:
+            lead = (r["chosen_text"] or r["body"] or "")[:200]
+            text_to_embed = f"{title}\n{lead}"
+
         vec = get_text_embedding(text_to_embed)
         
         articles.append({
             "url": r["url"],
-            "title": title,
+            "title": s_intel.get("executive_headline") or title,
+            "original_title": title,
             "published_at": r["published_at"] or r["created_at"],
             "media_name": r["media_name"],
             "embedding": vec
         })
+
         
     # 사건 단위 클러스터링
     clusters = cluster_articles_by_event(articles, similarity_threshold=similarity_threshold)

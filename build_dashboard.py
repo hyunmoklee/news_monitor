@@ -3,9 +3,8 @@
 Executive News Intelligence Dashboard Generator v2.0
 - Bloomberg / Palantir / Modern SaaS Dark Glassmorphism UI
 - gemini-embedding-2 Event Timeline Hub (Interactive Flow)
-- Executive 3-Line Summary Briefing
+- 7-Key Universal Intelligence Fact Box Modal (Headlines, Bullets, Metrics, Milestones, Implication)
 - Chart.js Analytics (Noise Filtering, Temporal Trend, Media Distribution)
-- Slide-over Article Reader Modal
 """
 import sqlite3
 import os
@@ -42,7 +41,8 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         tid = t["thread_id"]
         cursor.execute("""
             SELECT m.url, m.similarity_score, m.is_key_anchor,
-                   a.title, a.media_name, a.published_at, a.chosen_text, a.body, a.market_score
+                   a.title, a.media_name, a.published_at, a.chosen_text, a.body, a.market_score,
+                   a.structured_intelligence, a.event_category
             FROM article_thread_members m
             JOIN articles a ON m.url = a.url
             WHERE m.thread_id = ?
@@ -63,7 +63,8 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         SELECT url, title, media_name, journalist, author, body, chosen_text, keyword, 
                extraction_method, quality_score, quality_score_detail, 
                needs_review, published_at, created_at, processed_at,
-               is_exact_dup, is_market_news, market_score, llm_status, scoring_version
+               is_exact_dup, is_market_news, market_score, llm_status, scoring_version,
+               structured_intelligence, event_category
         FROM articles 
         ORDER BY published_at DESC, created_at DESC
     """)
@@ -174,7 +175,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                         <h1 class="text-xl font-bold tracking-tight text-white">{display_name}</h1>
                         <span class="px-2 py-0.5 text-xs font-semibold bg-cyan-500/20 text-cyan-400 rounded-full border border-cyan-500/30">Executive v2.0</span>
                     </div>
-                    <p class="text-xs text-gray-400">Zero-Trust AI 뉴스 인텔리전스 & 사건 타임라인 허브</p>
+                    <p class="text-xs text-gray-400">Zero-Trust AI 뉴스 인텔리전스 & 7-Key 구조화 팩트 추출 허브</p>
                 </div>
             </div>
 
@@ -182,7 +183,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             <div class="flex items-center space-x-4">
                 <div class="relative hidden sm:block w-72">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-sm"></i>
-                    <input type="text" id="searchInput" placeholder="사건명, 키워드, 언론사 검색..." 
+                    <input type="text" id="searchInput" placeholder="사건명, 수주액, 엔티티 검색..." 
                            class="w-full bg-gray-900/90 border border-gray-700/80 rounded-xl pl-9 pr-4 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
                 </div>
                 <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800">
@@ -190,7 +191,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                         <i class="fa-solid fa-timeline mr-1.5"></i>사건 타임라인
                     </button>
                     <button onclick="switchTab('articles')" id="tabBtn-articles" class="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all">
-                        <i class="fa-solid fa-newspaper mr-1.5"></i>핵심 기사
+                        <i class="fa-solid fa-newspaper mr-1.5"></i>구조화 팩트 기사
                     </button>
                     <button onclick="switchTab('analytics')" id="tabBtn-analytics" class="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all">
                         <i class="fa-solid fa-chart-pie mr-1.5"></i>MLOps 분석
@@ -210,42 +211,42 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 <div>
                     <div class="flex items-center space-x-2 text-cyan-400 text-xs font-bold uppercase tracking-wider mb-2">
                         <i class="fa-solid fa-sparkles"></i>
-                        <span>오늘의 3대 핵심 사건 경영진 브리핑 (Executive Summary)</span>
+                        <span>오늘의 핵심 사건 경영진 브리핑 (Universal Intelligence Executive Summary)</span>
                     </div>
                     <h2 class="text-xl font-extrabold text-white tracking-tight leading-snug">
-                        체코 원전 투자 주도권 충돌과 북미 SMR 공급망 수주가 오늘의 핵심 화두입니다.
+                        미국 대형 원전 수주 조기화와 SMR 공급망 확장 모멘텀이 핵심 동력입니다.
                     </h2>
                 </div>
                 <span class="hidden md:inline-flex items-center px-3 py-1 text-xs font-medium text-gray-300 bg-gray-800/80 rounded-lg border border-gray-700">
-                    <i class="fa-regular fa-clock mr-1.5 text-cyan-400"></i>최근 24시간 실시간 집계
+                    <i class="fa-regular fa-clock mr-1.5 text-cyan-400"></i>실시간 팩트 집계
                 </span>
             </div>
 
             <!-- 3 Core Points Grid -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
                 <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
-                    <div class="flex items-center space-x-2 text-amber-400 text-xs font-bold mb-1.5">
-                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                        <span>[주요 갈등] 대미 원전 투자 충돌</span>
-                    </div>
-                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">미국형 원전 고집에 韓 난색… 대미 투자 주도권 및 손실 분담 문제 부각</p>
-                    <p class="text-xs text-gray-400 mt-2">이데일리 단독 보도 후속 2건 연결 (유사도 0.91)</p>
-                </div>
-                <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
                     <div class="flex items-center space-x-2 text-cyan-400 text-xs font-bold mb-1.5">
-                        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                        <span>[기술 선점] SMR 3사 공급망 확보</span>
+                        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+                        <span>[수주/계약] 북미 대형 원전 발주 가속</span>
                     </div>
-                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">두산에너빌, 美 SMR 3사 공급망 확보 완료… 글로벌 원전 확장 가속</p>
-                    <p class="text-xs text-gray-400 mt-2">국민일보, 서울경제 등 후속 2건 연결 (유사도 0.84)</p>
+                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">미국 원전 정책 기반 조기 발주 및 신규 대형원전 수주 기대감으로 주가 10.55% 급등</p>
+                    <p class="text-xs text-gray-400 mt-2">현대건설 매터도어 4기 프로젝트와 연계 (유사도 0.89)</p>
                 </div>
                 <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
                     <div class="flex items-center space-x-2 text-emerald-400 text-xs font-bold mb-1.5">
                         <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                        <span>[수주 기대] 북미 대형 원전 모멘텀</span>
+                        <span>[설비투자/M&A] 웨스팅하우스 공동 인수 제안</span>
                     </div>
-                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">KB증권 "북미 신규 원전 발주 시계 가속… 수혜 전망에 장중 10%대 상승"</p>
-                    <p class="text-xs text-gray-400 mt-2">뉴스1, CBC 등 증권가 리포트 3건 연결 (유사도 0.88)</p>
+                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">美 정부의 한-미 공동 SPC 설립 제안… 한수원 지재권 갈등 해소 및 수출 가속</p>
+                    <p class="text-xs text-gray-400 mt-2">기관 순매수 992억 원 유입 (유사도 0.85)</p>
+                </div>
+                <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
+                    <div class="flex items-center space-x-2 text-amber-400 text-xs font-bold mb-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
+                        <span>[재무/실적] 시가총액 51조 원 돌파</span>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">시가총액 51조 6,933억 원(14위) 달성, 거래량 316% 폭증</p>
+                    <p class="text-xs text-gray-400 mt-2">KB증권 등 주요 증권가 리포트 일제히 호평</p>
                 </div>
             </div>
         </section>
@@ -267,10 +268,10 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 </div>
             </div>
             <div class="glass-card rounded-xl p-4 border border-gray-800">
-                <p class="text-xs text-cyan-400 font-medium">기업 핵심 기사</p>
+                <p class="text-xs text-cyan-400 font-medium">구조화 기업 기사</p>
                 <div class="flex items-baseline space-x-2 mt-1">
                     <span class="text-2xl font-bold text-cyan-400">{company_count}</span>
-                    <span class="text-xs text-gray-500">건 정제 보존</span>
+                    <span class="text-xs text-gray-500">건 팩트 추출</span>
                 </div>
             </div>
             <div class="glass-card rounded-xl p-4 border border-gray-800">
@@ -290,9 +291,9 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 <div class="flex items-center space-x-2">
                     <h3 class="text-lg font-bold text-white flex items-center">
                         <i class="fa-solid fa-code-merge text-cyan-400 mr-2"></i>
-                        gemini-embedding-2 사건 타임라인 스레드
+                        gemini-embedding-2 사건 타임라인 스레드 (Fact-Guided v2.0)
                     </h3>
-                    <span class="text-xs bg-gray-800 text-gray-400 px-2.5 py-0.5 rounded-full border border-gray-700">하이브리드 유사도 &ge; 0.82 클러스터</span>
+                    <span class="text-xs bg-gray-800 text-gray-400 px-2.5 py-0.5 rounded-full border border-gray-700">7-Key 팩트 벡터 클러스터링</span>
                 </div>
                 <span class="text-xs text-gray-400">사건 카드를 클릭하면 시간순 후속 보도 타임라인이 펼쳐집니다.</span>
             </div>
@@ -304,15 +305,15 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         </section>
 
         <!-- ================================================================= -->
-        <!-- TAB 2: Cleaned Core Articles -->
+        <!-- TAB 2: Cleaned Core Articles with 7-Key Fact Badges -->
         <!-- ================================================================= -->
         <section id="tab-articles" class="hidden space-y-4">
             <div class="flex items-center justify-between mb-2">
                 <h3 class="text-lg font-bold text-white flex items-center">
                     <i class="fa-solid fa-newspaper text-emerald-400 mr-2"></i>
-                    정제된 기업 핵심 기사 목록
+                    구조화 팩트 기반 기업 핵심 기사
                 </h3>
-                <span class="text-xs text-gray-400">시황 노이즈 100% 제거 완료</span>
+                <span class="text-xs text-gray-400">7대 범용 인텔리전스 스키마 완비</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="articlesContainer">
@@ -385,26 +386,94 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
     </main>
 
-    <!-- Slide-over Article Reader Modal -->
+    <!-- Slide-over Article Reader Modal with 7-Key Fact Box -->
     <div id="readerModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex justify-end transition-opacity">
         <div class="w-full max-w-2xl bg-gray-900 border-l border-gray-800 h-full p-8 overflow-y-auto custom-scrollbar flex flex-col justify-between shadow-2xl">
-            <div>
+            <div class="space-y-6">
+                <!-- Header -->
                 <div class="flex items-center justify-between pb-4 border-b border-gray-800">
-                    <span id="modalMedia" class="px-2.5 py-1 rounded-md text-xs font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">언론사</span>
+                    <div class="flex items-center space-x-2">
+                        <span id="modalMedia" class="px-2.5 py-1 rounded-md text-xs font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">언론사</span>
+                        <span id="modalCategory" class="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">카테고리</span>
+                    </div>
                     <button onclick="closeModal()" class="text-gray-400 hover:text-white text-xl">
                         <i class="fa-solid fa-xmark"></i>
                     </button>
                 </div>
-                <h3 id="modalTitle" class="text-2xl font-bold text-white mt-4 leading-snug">기사 제목</h3>
-                <div class="flex items-center space-x-4 text-xs text-gray-400 mt-3 pb-4 border-b border-gray-800/60">
+
+                <!-- Headline -->
+                <div>
+                    <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">
+                        <i class="fa-solid fa-bolt mr-1"></i>C-Level Executive Headline
+                    </span>
+                    <h3 id="modalHeadline" class="text-xl font-extrabold text-white leading-snug">헤드라인</h3>
+                    <p id="modalOriginalTitle" class="text-xs text-gray-400 mt-1.5">원제: 기사 원제목</p>
+                </div>
+
+                <!-- Meta -->
+                <div class="flex items-center space-x-4 text-xs text-gray-400 pb-3 border-b border-gray-800/60">
                     <span id="modalPublished"><i class="fa-regular fa-clock mr-1"></i>2026-08-25</span>
                     <span id="modalAuthor"><i class="fa-regular fa-user mr-1"></i>기자</span>
                 </div>
-                <div class="mt-6 text-gray-300 leading-relaxed space-y-4 text-sm font-normal" id="modalBody">
-                    본문 내용이 여기에 표시됩니다.
+
+                <!-- 7-Key Fact Box Container -->
+                <div id="modalFactBox" class="space-y-4">
+                    <!-- Core Summary Bullets -->
+                    <div class="bg-gray-800/60 rounded-xl p-4 border border-gray-700/60">
+                        <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5 flex items-center">
+                            <i class="fa-solid fa-list-check text-cyan-400 mr-1.5"></i>경영진 3줄 핵심 요약
+                        </h4>
+                        <ul id="modalBullets" class="text-sm text-gray-200 space-y-1.5 leading-relaxed font-normal">
+                            <!-- Bullets -->
+                        </ul>
+                    </div>
+
+                    <!-- Key Metrics Grid -->
+                    <div id="modalMetricsWrapper" class="hidden">
+                        <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2 flex items-center">
+                            <i class="fa-solid fa-coins text-amber-400 mr-1.5"></i>핵심 정량 지표 (Key Metrics)
+                        </h4>
+                        <div id="modalMetricsGrid" class="grid grid-cols-2 gap-2.5">
+                            <!-- Metric Badges -->
+                        </div>
+                    </div>
+
+                    <!-- Milestones -->
+                    <div id="modalMilestonesWrapper" class="hidden bg-gray-800/40 rounded-xl p-3.5 border border-gray-700/40">
+                        <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2 flex items-center">
+                            <i class="fa-regular fa-calendar-check text-emerald-400 mr-1.5"></i>주요 마일스톤 및 일정
+                        </h4>
+                        <ul id="modalMilestones" class="text-xs text-gray-300 space-y-1">
+                            <!-- Milestones -->
+                        </ul>
+                    </div>
+
+                    <!-- Strategic Implication -->
+                    <div id="modalImplicationWrapper" class="hidden bg-cyan-950/20 rounded-xl p-3.5 border border-cyan-500/30">
+                        <h4 class="text-xs font-bold text-cyan-400 uppercase tracking-wider mb-1 flex items-center">
+                            <i class="fa-solid fa-lightbulb mr-1.5"></i>경영 전략적 시사점
+                        </h4>
+                        <p id="modalImplication" class="text-xs text-cyan-200 leading-relaxed font-normal">
+                            <!-- Implication -->
+                        </p>
+                    </div>
                 </div>
+
+                <!-- Collapsible Raw Text -->
+                <div class="pt-4 border-t border-gray-800">
+                    <button onclick="toggleRawText()" class="text-xs font-semibold text-gray-400 hover:text-cyan-400 flex items-center justify-between w-full">
+                        <span><i class="fa-solid fa-align-left mr-1.5"></i>기사 본문 전문 보기 (원문 텍스트)</span>
+                        <i id="rawTextChevron" class="fa-solid fa-chevron-down text-xs"></i>
+                    </button>
+                    <div id="modalRawBody" class="hidden mt-3 text-xs text-gray-400 leading-relaxed space-y-2 max-h-60 overflow-y-auto p-3 bg-gray-950 rounded-lg border border-gray-800">
+                        <!-- Raw Body -->
+                    </div>
+                </div>
+
             </div>
-            <div class="pt-6 mt-8 border-t border-gray-800 flex justify-between items-center">
+
+            <!-- Footer -->
+            <div class="pt-6 mt-6 border-t border-gray-800 flex justify-between items-center">
                 <a id="modalUrl" href="#" target="_blank" class="text-xs text-cyan-400 hover:underline flex items-center">
                     네이버 뉴스 원문 보기 <i class="fa-solid fa-arrow-up-right-from-square ml-1.5"></i>
                 </a>
@@ -435,7 +504,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                     membersHtml = `
                         <div id="thread-details-${{idx}}" class="hidden mt-4 pt-4 border-t border-gray-800/80 space-y-3">
                             <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                                <i class="fa-solid fa-code-branch mr-1 text-cyan-400"></i>시간순 후속 보도 타임라인
+                                <i class="fa-solid fa-code-branch mr-1 text-cyan-400"></i>시간순 후속 보도 타임라인 (7-Key 팩트 연계)
                             </p>
                             ${{t.members.map((m, mIdx) => `
                                 <div class="flex items-start space-x-3 bg-gray-900/60 p-3 rounded-lg border border-gray-800/60 hover:border-cyan-500/30"
@@ -454,7 +523,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                                         <div class="flex items-center space-x-3 text-xs text-gray-500 mt-1">
                                             <span>${{m.is_key_anchor ? '최초 앵커 기사' : `유사도 ${{m.similarity_score}}`}}</span>
                                             <span>•</span>
-                                            <span>점수: ${{m.market_score}}</span>
+                                            <span class="text-emerald-400">${{m.event_category || '경영일반'}}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -491,47 +560,145 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
         function toggleThreadDetails(idx) {{
             const el = document.getElementById(`thread-details-${{idx}}`);
-            if (el) {{
-                el.classList.toggle('hidden');
-            }}
+            if (el) el.classList.toggle('hidden');
         }}
 
-        // Render Articles
+        // Render Articles with Fact Badges
         function renderArticles() {{
             const container = document.getElementById('articlesContainer');
             container.innerHTML = '';
 
             ARTICLES.forEach(a => {{
+                let s_intel = null;
+                try {{
+                    if (a.structured_intelligence) s_intel = JSON.parse(a.structured_intelligence);
+                }} catch(e) {{}}
+
+                const headline = (s_intel && s_intel.executive_headline) ? s_intel.executive_headline : a.title;
+                const cat = (s_intel && s_intel.event_category) ? s_intel.event_category : (a.event_category || '경영일반');
+                const bullets = (s_intel && s_intel.core_summary_bullets) ? s_intel.core_summary_bullets : [];
+                const metrics = (s_intel && s_intel.key_metrics) ? s_intel.key_metrics : [];
+
                 const card = document.createElement('div');
                 card.className = "glass-card rounded-xl p-5 border border-gray-800 glass-card-hover cursor-pointer flex flex-col justify-between";
                 card.onclick = () => openModal(a);
 
+                let metricsBadgesHtml = '';
+                if (metrics.length > 0) {{
+                    metricsBadgesHtml = `
+                        <div class="flex flex-wrap gap-1.5 mt-2.5">
+                            ${{metrics.slice(0, 2).map(m => `
+                                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                                    ${{m.metric_name}}: ${{m.value}}
+                                </span>
+                            `).join('')}}
+                        </div>
+                    `;
+                }}
+
                 card.innerHTML = `
                     <div>
                         <div class="flex items-center justify-between mb-2">
-                            <span class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">${{a.media_name || '언론사'}}</span>
+                            <div class="flex items-center space-x-1.5">
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">${{a.media_name || '언론사'}}</span>
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">${{cat}}</span>
+                            </div>
                             <span class="text-xs text-gray-500">${{a.published_at || ''}}</span>
                         </div>
-                        <h4 class="text-sm font-bold text-gray-100 hover:text-cyan-400 line-clamp-2 leading-snug">${{a.title}}</h4>
-                        <p class="text-xs text-gray-400 line-clamp-3 mt-2 leading-relaxed">${{a.chosen_text || a.body || ''}}</p>
+                        <h4 class="text-sm font-bold text-gray-100 hover:text-cyan-400 line-clamp-2 leading-snug">${{headline}}</h4>
+                        ${{bullets.length > 0 ? `<p class="text-xs text-gray-300 line-clamp-2 mt-2 leading-relaxed font-normal">${{bullets[0]}}</p>` : `<p class="text-xs text-gray-400 line-clamp-2 mt-2 leading-relaxed">${{a.chosen_text || a.body || ''}}</p>`}}
+                        ${{metricsBadgesHtml}}
                     </div>
                     <div class="mt-4 pt-3 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-500">
-                        <span>점수: ${{a.market_score}} (기업 확정)</span>
-                        <span class="text-cyan-400 hover:underline">상세 읽기 &rarr;</span>
+                        <span>7대 팩트 구조화 완료</span>
+                        <span class="text-cyan-400 hover:underline">인텔리전스 리더 &rarr;</span>
                     </div>
                 `;
                 container.appendChild(card);
             }});
         }}
 
-        // Modal Functions
+        // Modal Functions with 7-Key Fact Box
         function openModal(a) {{
-            document.getElementById('modalTitle').innerText = a.title || '제목 없음';
+            let s_intel = null;
+            try {{
+                if (a.structured_intelligence) s_intel = JSON.parse(a.structured_intelligence);
+            }} catch(e) {{}}
+
+            const headline = (s_intel && s_intel.executive_headline) ? s_intel.executive_headline : a.title;
+            const cat = (s_intel && s_intel.event_category) ? s_intel.event_category : (a.event_category || '경영일반');
+            const bullets = (s_intel && s_intel.core_summary_bullets) ? s_intel.core_summary_bullets : [];
+            const metrics = (s_intel && s_intel.key_metrics) ? s_intel.key_metrics : [];
+            const milestones = (s_intel && s_intel.timeline_milestones) ? s_intel.timeline_milestones : [];
+            const implication = (s_intel && s_intel.strategic_implication) ? s_intel.strategic_implication : null;
+
+            document.getElementById('modalHeadline').innerText = headline;
+            document.getElementById('modalOriginalTitle').innerText = `원제: ${{a.title}}`;
             document.getElementById('modalMedia').innerText = a.media_name || '언론사';
+            document.getElementById('modalCategory').innerText = cat;
             document.getElementById('modalPublished').innerHTML = `<i class="fa-regular fa-clock mr-1"></i>${{a.published_at || '-'}}`;
             document.getElementById('modalAuthor').innerHTML = `<i class="fa-regular fa-user mr-1"></i>${{a.journalist || a.author || '기자 정보 없음'}}`;
-            document.getElementById('modalBody').innerText = a.chosen_text || a.body || '본문 없음';
             document.getElementById('modalUrl').href = a.url || '#';
+            document.getElementById('modalRawBody').innerText = a.chosen_text || a.body || '본문 없음';
+
+            // Render Bullets
+            const bulletsEl = document.getElementById('modalBullets');
+            bulletsEl.innerHTML = '';
+            if (bullets.length > 0) {{
+                bullets.forEach(b => {{
+                    const li = document.createElement('li');
+                    li.innerText = b;
+                    bulletsEl.appendChild(li);
+                }});
+            }} else {{
+                bulletsEl.innerHTML = `<li>${{a.title}}</li>`;
+            }}
+
+            // Render Metrics
+            const metricsWrap = document.getElementById('modalMetricsWrapper');
+            const metricsGrid = document.getElementById('modalMetricsGrid');
+            metricsGrid.innerHTML = '';
+            if (metrics.length > 0) {{
+                metricsWrap.classList.remove('hidden');
+                metrics.forEach(m => {{
+                    const mBox = document.createElement('div');
+                    mBox.className = "bg-gray-800/80 p-2.5 rounded-lg border border-gray-700/80";
+                    mBox.innerHTML = `
+                        <p class="text-[11px] text-gray-400 font-medium">${{m.metric_name}}</p>
+                        <p class="text-sm font-bold text-amber-400 mt-0.5">${{m.value}}</p>
+                        ${{m.context ? `<p class="text-[10px] text-gray-500 mt-0.5 truncate">${{m.context}}</p>` : ''}}
+                    `;
+                    metricsGrid.appendChild(mBox);
+                }});
+            }} else {{
+                metricsWrap.classList.add('hidden');
+            }}
+
+            // Render Milestones
+            const milesWrap = document.getElementById('modalMilestonesWrapper');
+            const milesEl = document.getElementById('modalMilestones');
+            milesEl.innerHTML = '';
+            if (milestones.length > 0) {{
+                milesWrap.classList.remove('hidden');
+                milestones.forEach(m => {{
+                    const li = document.createElement('li');
+                    li.innerHTML = `<span class="text-emerald-400 font-semibold">•</span> ${{m}}`;
+                    milesEl.appendChild(li);
+                }});
+            }} else {{
+                milesWrap.classList.add('hidden');
+            }}
+
+            // Render Implication
+            const impWrap = document.getElementById('modalImplicationWrapper');
+            const impEl = document.getElementById('modalImplication');
+            if (implication) {{
+                impWrap.classList.remove('hidden');
+                impEl.innerText = implication;
+            }} else {{
+                impWrap.classList.add('hidden');
+            }}
+
             document.getElementById('readerModal').classList.remove('hidden');
         }}
 
@@ -542,6 +709,14 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
         function closeModal() {{
             document.getElementById('readerModal').classList.add('hidden');
+        }}
+
+        function toggleRawText() {{
+            const rawBody = document.getElementById('modalRawBody');
+            const chevron = document.getElementById('rawTextChevron');
+            rawBody.classList.toggle('hidden');
+            chevron.classList.toggle('fa-chevron-up');
+            chevron.classList.toggle('fa-chevron-down');
         }}
 
         // Tab Switching
@@ -561,7 +736,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             new Chart(document.getElementById('noiseChart'), {{
                 type: 'doughnut',
                 data: {{
-                    labels: ['시황 노이즈 제외', '기업 핵심 보존'],
+                    labels: ['시황 노이즈 제외', '구조화 팩트 보존'],
                     datasets: [{{
                         data: [{market_count}, {company_count}],
                         backgroundColor: ['#f59e0b', '#06b6d4'],
@@ -635,16 +810,23 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 renderArticles();
                 return;
             }}
-            // Filter logic
+            
             const filteredArticles = ARTICLES.filter(a => 
                 (a.title && a.title.toLowerCase().includes(query)) ||
                 (a.chosen_text && a.chosen_text.toLowerCase().includes(query)) ||
-                (a.media_name && a.media_name.toLowerCase().includes(query))
+                (a.media_name && a.media_name.toLowerCase().includes(query)) ||
+                (a.structured_intelligence && a.structured_intelligence.toLowerCase().includes(query))
             );
             
             const container = document.getElementById('articlesContainer');
             container.innerHTML = '';
             filteredArticles.forEach(a => {{
+                let s_intel = null;
+                try {{
+                    if (a.structured_intelligence) s_intel = JSON.parse(a.structured_intelligence);
+                }} catch(e) {{}}
+                const headline = (s_intel && s_intel.executive_headline) ? s_intel.executive_headline : a.title;
+
                 const card = document.createElement('div');
                 card.className = "glass-card rounded-xl p-5 border border-cyan-500/40 glass-card-hover cursor-pointer";
                 card.onclick = () => openModal(a);
@@ -653,7 +835,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                         <span class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">${{a.media_name}}</span>
                         <span class="text-xs text-gray-500">${{a.published_at}}</span>
                     </div>
-                    <h4 class="text-sm font-bold text-gray-100">${{a.title}}</h4>
+                    <h4 class="text-sm font-bold text-gray-100">${{headline}}</h4>
                 `;
                 container.appendChild(card);
             }});

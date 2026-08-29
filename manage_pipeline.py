@@ -191,12 +191,15 @@ async def execute_backfill(
         body = art.get("chosen_text") or art.get("body") or ""
         is_exact_dup = art.get("is_exact_dup", 0)
         
+        target_company = config.get("target_company", {}).get("name", "두산에너빌리티")
+
         if is_exact_dup == 1:
-            update_payloads.append((1, 1, 0, "n/a", target_version, now_ts, u))
+            update_payloads.append((1, 1, 0, "n/a", target_version, now_ts, None, None, u))
             continue
             
         score, detail = calculate_market_score(t, body, config, company_list)
         group, rule_is_market = evaluate_decision(score, config)
+
         
         if group == "Group A":
             is_mkt = False
@@ -270,14 +273,28 @@ async def execute_backfill(
                     print(f"  [Boundary Check Call #{llm_call_count}] Failure Rate: {failure_rate*100:.2f}% <= 5.0% Threshold -> Pipeline Continues.")
 
                 
-        # Short-Circuit Value Score Serialization (Only for Confirmed Company News)
+        # [v2.0 Structured Intelligence Extraction for Confirmed Company Articles]
+        structured_intel_json = None
+        event_cat = None
         if is_mkt is False:
-            val_res = compute_value_score({"title": t, "cleaned_body": body, "url": u, "media_name": art.get("media_name", "")}, config)
-            val_score = val_res.get("total_score", 0.0)
-        else:
-            val_score = 0.0
-            
-        update_payloads.append((0, 1 if is_mkt is True else (0 if is_mkt is False else None), score, status, target_version, now_ts, u))
+            from extractor.intelligence_extractor import extract_intelligence_async
+            intel_res = await extract_intelligence_async(t, body, target_company=target_company)
+            if intel_res.get("success") and intel_res.get("intelligence"):
+                structured_intel_json = json.dumps(intel_res["intelligence"], ensure_ascii=False)
+                event_cat = intel_res["intelligence"].get("event_category")
+
+
+        update_payloads.append((
+            0, 
+            1 if is_mkt is True else (0 if is_mkt is False else None), 
+            score, 
+            status, 
+            target_version, 
+            now_ts, 
+            structured_intel_json,
+            event_cat,
+            u
+        ))
         
     print(f"[*] Step 3 (Inference): Evaluated {len(update_payloads)} records (LLM Calls: {llm_call_count}, Failures: {llm_failure_count}).")
     
@@ -334,10 +351,13 @@ async def execute_backfill(
                 market_score = ?,
                 llm_status = ?,
                 scoring_version = ?,
-                market_processed_at = ?
+                market_processed_at = ?,
+                structured_intelligence = ?,
+                event_category = ?
                WHERE url = ?""",
             update_payloads
         )
+
         
         # Unified Atomic Commit
         conn.commit()
