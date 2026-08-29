@@ -127,17 +127,21 @@ def calculate_market_score(
         f7_score = 30
     detail["F7_score"] = f7_score
 
-    # F8. 그룹사/지주사/오너 동향 감지 (두산에너빌 본사 언급 1회 이하 + 그룹/지배구조 키워드) (+30)
+    # 타깃 기업 본사 언급 횟수 동적 계산
+    target_mention_count = sum((body or "").count(a) for a in t_aliases)
+
+    # F8. 그룹사/지주사/오너 동향 감지 (타깃 기업 본사 언급 1회 이하 + 그룹/지배구조 키워드) (+30)
     f8_score = 0
-    if re.search(r'그룹사|지주사|지배구조|인물탐구|회장단|총수|오너\s*일가|M&A\s*후', title) and (body or "").count("두산에너빌") <= 1:
+    if re.search(r'그룹사|지주사|지배구조|인물탐구|회장단|총수|오너\s*일가|M&A\s*후', title) and target_mention_count <= 1:
         f8_score = 30
     detail["F8_score"] = f8_score
 
-    # F9. 지자체/광역단체 일반 행정·도정 감지 (두산에너빌 본사 언급 1회 이하 + 지자체 직제 키워드) (+30)
+    # F9. 지자체/광역단체 일반 행정·도정 감지 (타깃 기업 본사 언급 1회 이하 + 지자체 직제 키워드) (+30)
     f9_score = 0
-    if re.search(r'도청|시청|도지사|광역단체장|특례시|도정\s*소식|재난통합', title) and (body or "").count("두산에너빌") <= 1:
+    if re.search(r'도청|시청|도지사|광역단체장|특례시|도정\s*소식|재난통합', title) and target_mention_count <= 1:
         f9_score = 30
     detail["F9_score"] = f9_score
+
 
     # F2. 타 상장사 나열도
     valid_company_matches = 0

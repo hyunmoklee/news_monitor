@@ -17,14 +17,18 @@ async def call_gemini_fallback(
 
     from config import get_gemini_client, DEFAULT_GEMINI_MODEL, GEMINI_THINKING_BUDGET
     
+    targets = config.get("targets", {})
+    t_name = list(targets.keys())[0] if targets else "타깃 기업"
+
     prompt = (
         f"당신은 금융 뉴스 분석기입니다.\n"
         f"기사 제목: {title}\n"
         f"기사 본문(앞 300자): {lead_300}\n\n"
-        f"본 뉴스가 [두산에너빌리티]의 자체 사업/실적/계약/이슈 중심 기사이면 is_market_news: false,\n"
+        f"본 뉴스가 [{t_name}]의 자체 사업/실적/계약/이슈 중심 기사이면 is_market_news: false,\n"
         f"증시 전반이나 다수 종목을 나열한 단순 시황 기사이면 is_market_news: true 로 판정하세요.\n"
         f"반드시 JSON 형식으로만 응답하세요: {{\"is_market_news\": boolean, \"reason\": string}}"
     )
+
     
     model_name = config.get("llm", {}).get("model", DEFAULT_GEMINI_MODEL)
     max_retries = config.get("llm", {}).get("max_retries", 3)
