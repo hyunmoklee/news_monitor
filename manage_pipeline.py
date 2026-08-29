@@ -318,7 +318,7 @@ async def execute_backfill(
 
 def run_healthcheck():
     """
-    B-3: Healthcheck for recent LLM error rates and manual review queues.
+    B-3: Comprehensive Healthcheck for LLM rates, audit discrepancies, and thread stats.
     """
     config = load_config()
     db_path = os.path.join(BASE_DIR, "news_monitor.db")
@@ -335,6 +335,20 @@ def run_healthcheck():
     total_llm = manual_count + success_count
     failure_rate = (manual_count / total_llm) if total_llm > 0 else 0.0
     
+    # Audit Discrepancies Count
+    try:
+        cur.execute("SELECT COUNT(*) FROM audit_discrepancies WHERE status = 'open'")
+        open_discrepancies = cur.fetchone()[0]
+    except Exception:
+        open_discrepancies = 0
+
+    # Event Threads Count
+    try:
+        cur.execute("SELECT COUNT(*) FROM article_threads")
+        thread_count = cur.fetchone()[0]
+    except Exception:
+        thread_count = 0
+    
     print(f"\n{'='*70}")
     print(f"🏥 [MLOps Healthcheck Report] News Monitor System")
     print(f"{'='*70}")
@@ -342,17 +356,21 @@ def run_healthcheck():
     print(f"  * Successful LLM Decisions     : {success_count} articles")
     print(f"  * Manual Review Queue (Pending): {manual_count} articles")
     print(f"  * Failure / Fallback Rate      : {failure_rate*100:.2f}%")
+    print(f"  * Open Audit Discrepancies     : {open_discrepancies} items (Rule vs LLM conflict)")
+    print(f"  * Active Event Threads         : {thread_count} threads (gemini-embedding-2)")
     
     if failure_rate > 0.05:
         print(f"  * System Health Status         : 🔴 UNHEALTHY (Failure rate > 5.0%)")
+    elif open_discrepancies > 10:
+        print(f"  * System Health Status         : 🟡 WARNING (High Audit Discrepancies)")
     else:
-        print(f"  * System Health Status         : 🟢 HEALTHY (Failure rate <= 5.0%)")
+        print(f"  * System Health Status         : 🟢 HEALTHY (Operating Normally)")
     print(f"{'='*70}\n")
     conn.close()
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Production MLOps Pipeline Manager (Phase B)")
+    parser = argparse.ArgumentParser(description="Production MLOps Pipeline Manager (Phase B & Next)")
     subparsers = parser.add_subparsers(dest="command", required=True)
     
     # Subcommand: run-backfill
@@ -362,10 +380,20 @@ def main():
     bf_parser.add_argument("--reprocess-from-version", type=str, default=None, help="Reprocess articles from specific version (e.g. v1.1)")
     bf_parser.add_argument("--inject-error", type=str, default=None, choices=["timeout", "case_a_5pct", "case_b_10pct", "case_b_strict_5_2pct", "db_write_fail"], help="Fault injection for verification testing")
 
+    # Subcommand: run-audit (Shadow Spot-Audit for 84% Rule Section)
+    audit_parser = subparsers.add_parser("run-audit", help="Run Shadow Spot-Audit on 84% Rule-Auto section")
+    audit_parser.add_argument("--sample-rate", type=float, default=0.15, help="Sampling rate for Rule Group A/B (default: 0.15 = 15%)")
 
-    
+    # Subcommand: evaluate-gold (Benchmark on Gold Standard Dataset)
+    gold_parser = subparsers.add_parser("evaluate-gold", help="Evaluate current pipeline on Gold Standard Dataset")
+    gold_parser.add_argument("--gold-file", type=str, default="evaluation/gold_dataset_v1.json", help="Path to gold dataset JSON file")
+
+    # Subcommand: run-threading (Event Timeline Threading with gemini-embedding-2)
+    thread_parser = subparsers.add_parser("run-threading", help="Build event timeline threads using gemini-embedding-2")
+    thread_parser.add_argument("--threshold", type=float, default=0.82, help="Cosine similarity threshold for clustering (default: 0.82)")
+
     # Subcommand: healthcheck
-    subparsers.add_parser("healthcheck", help="Run MLOps healthcheck and query manual review queue")
+    subparsers.add_parser("healthcheck", help="Run MLOps healthcheck and query queues/metrics")
     
     args = parser.parse_args()
     
@@ -373,12 +401,39 @@ def main():
         asyncio.run(execute_backfill(
             start_date=args.start_date,
             batch_size=args.batch_size,
-            reprocess_version=args.reprocess_from_version,
+            reprocess_from_version=args.reprocess_from_version,
             inject_error=args.inject_error
         ))
+    elif args.command == "run-audit":
+        from audit.spot_auditor import run_spot_audit
+        asyncio.run(run_spot_audit(sample_rate=args.sample_rate))
+    elif args.command == "evaluate-gold":
+        from evaluation.benchmark import evaluate_gold_dataset
+        res = evaluate_gold_dataset(args.gold_file)
+        print("\n" + "="*70)
+        print(f"📊 [Gold Dataset Benchmark Evaluation Report]")
+        print("="*70)
+        print(f"  * Evaluated Samples   : {res['evaluated_samples']} / {res['total_gold_samples']} samples")
+        print(f"  * Overall Accuracy    : {res['overall_accuracy']*100:.2f}% (95% CI: {res['accuracy_95ci'][0]*100:.1f}% ~ {res['accuracy_95ci'][1]*100:.1f}%)")
+        print(f"\n  [Confusion Matrix]")
+        print(f"    - True Market (TP)  : {res['confusion_matrix']['TP (Market->Market)']} | False Market (FP) : {res['confusion_matrix']['FP (Company->Market)']}")
+        print(f"    - True Company (TN) : {res['confusion_matrix']['TN (Company->Company)']} | False Company (FN): {res['confusion_matrix']['FN (Market->Company)']}")
+        print(f"\n  [Company Core News Metrics]")
+        print(f"    - Precision : {res['company_news']['precision']*100:.2f}% (95% CI: {res['company_news']['precision_95ci'][0]*100:.1f}% ~ {res['company_news']['precision_95ci'][1]*100:.1f}%)")
+        print(f"    - Recall    : {res['company_news']['recall']*100:.2f}% (95% CI: {res['company_news']['recall_95ci'][0]*100:.1f}% ~ {res['company_news']['recall_95ci'][1]*100:.1f}%)")
+        print(f"    - F1-Score  : {res['company_news']['f1_score']:.4f}")
+        print(f"\n  [Section-wise Audit Analysis]")
+        print(f"    - 84% Rule Section Accuracy : {res['section_breakdown']['rule_auto_section']['accuracy']*100:.2f}% ({res['section_breakdown']['rule_auto_section']['count']} items)")
+        print(f"    - 16% LLM Section Accuracy  : {res['section_breakdown']['llm_grayzone_section']['accuracy']*100:.2f}% ({res['section_breakdown']['llm_grayzone_section']['count']} items)")
+        print("="*70 + "\n")
+    elif args.command == "run-threading":
+        from event_threading.timeline_engine import build_event_threads
+        build_event_threads(similarity_threshold=args.threshold)
+
     elif args.command == "healthcheck":
         run_healthcheck()
 
 
 if __name__ == "__main__":
     main()
+
