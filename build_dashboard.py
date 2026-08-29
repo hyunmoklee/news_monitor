@@ -1,10 +1,10 @@
 # build_dashboard.py
 """
-Executive News Intelligence Dashboard Generator v2.0
+Executive News Intelligence Dashboard Generator v2.2
 - Bloomberg / Palantir / Modern SaaS Dark Glassmorphism UI
-- gemini-embedding-2 Event Timeline Hub (Interactive Flow)
-- 7-Key Universal Intelligence Fact Box Modal
-- Filtered Market News Threading & Inspection Tab (Grouped by duplicate campaigns, e.g. 키움증권 60건 단일화)
+- gemini-embedding-2 Event Timeline Hub (Interactive Complete-Linkage Flow)
+- 7-Key Universal Intelligence Structured Article List View (Enterprise Table/List UI)
+- Filtered Market News Threading & Inspection Tab
 - Chart.js Analytics (Noise Filtering, Temporal Trend, Media Distribution)
 """
 import sqlite3
@@ -29,7 +29,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # 1. Fetch Corporate Event Threads (gemini-embedding-2)
+    # 1. Fetch Corporate Event Threads (Complete-Linkage Agglomerative)
     cursor.execute("""
         SELECT thread_id, thread_title, article_count, first_event_at, last_event_at
         FROM article_threads
@@ -59,7 +59,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             "members": members
         })
 
-    # 2. Fetch Filtered Market Threads (gemini-embedding-2 / Jaccard)
+    # 2. Fetch Filtered Market Threads
     market_threads_data = []
     try:
         cursor.execute("""
@@ -92,13 +92,15 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
     # 3. Fetch All Articles
     cursor.execute("""
-        SELECT url, title, media_name, journalist, author, body, chosen_text, keyword, 
-               extraction_method, quality_score, quality_score_detail, 
-               needs_review, published_at, created_at, processed_at,
-               is_exact_dup, is_market_news, market_score, llm_status, scoring_version,
-               structured_intelligence, event_category
-        FROM articles 
-        ORDER BY published_at DESC, created_at DESC
+        SELECT a.url, a.title, a.media_name, a.journalist, a.author, a.body, a.chosen_text, a.keyword, 
+               a.extraction_method, a.quality_score, a.quality_score_detail, 
+               a.needs_review, a.published_at, a.created_at, a.processed_at,
+               a.is_exact_dup, a.is_market_news, a.market_score, a.llm_status, a.scoring_version,
+               a.structured_intelligence, a.event_category, a.thread_id,
+               t.thread_title
+        FROM articles a
+        LEFT JOIN article_threads t ON a.thread_id = t.thread_id
+        ORDER BY a.published_at DESC, a.created_at DESC
     """)
     all_articles = [dict(r) for r in cursor.fetchall()]
     conn.close()
@@ -187,14 +189,18 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             transform: translateY(-2px);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }}
+        .list-row-hover:hover {{
+            background: rgba(30, 41, 59, 0.7);
+            border-color: rgba(56, 189, 248, 0.4);
+            transform: translateX(4px);
+            transition: all 0.15s ease-in-out;
+        }}
         .glass-card-danger:hover {{
             background: rgba(31, 41, 55, 0.85);
             border-color: rgba(239, 68, 68, 0.4);
             transform: translateY(-2px);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }}
-        .neon-border-cyan {{ box-shadow: 0 0 15px rgba(6, 182, 212, 0.2); }}
-        .neon-border-emerald {{ box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }}
         .custom-scrollbar::-webkit-scrollbar {{ width: 6px; height: 6px; }}
         .custom-scrollbar::-webkit-scrollbar-track {{ background: #0F172A; }}
         .custom-scrollbar::-webkit-scrollbar-thumb {{ background: #334155; border-radius: 4px; }}
@@ -213,7 +219,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 <div>
                     <div class="flex items-center space-x-2">
                         <h1 class="text-xl font-bold tracking-tight text-white">{display_name}</h1>
-                        <span class="px-2 py-0.5 text-xs font-semibold bg-cyan-500/20 text-cyan-400 rounded-full border border-cyan-500/30">Executive v2.0</span>
+                        <span class="px-2 py-0.5 text-xs font-semibold bg-cyan-500/20 text-cyan-400 rounded-full border border-cyan-500/30">Executive v2.2</span>
                     </div>
                     <p class="text-xs text-gray-400">Zero-Trust AI 뉴스 인텔리전스 & 7-Key 구조화 팩트 추출 허브</p>
                 </div>
@@ -228,10 +234,10 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 </div>
                 <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800">
                     <button onclick="switchTab('threads')" id="tabBtn-threads" class="px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all bg-cyan-600 text-white shadow-md">
-                        <i class="fa-solid fa-timeline mr-1"></i>사건 타임라인
+                        <i class="fa-solid fa-timeline mr-1"></i>사건 타임라인 ({len(threads_data)})
                     </button>
                     <button onclick="switchTab('articles')" id="tabBtn-articles" class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all">
-                        <i class="fa-solid fa-newspaper mr-1"></i>구조화 기사 ({company_count})
+                        <i class="fa-solid fa-list-check mr-1"></i>구조화 기사 리스트 ({company_count})
                     </button>
                     <button onclick="switchTab('filtered')" id="tabBtn-filtered" class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-amber-400 hover:text-amber-300 transition-all">
                         <i class="fa-solid fa-filter-circle-xmark mr-1"></i>시황 제외 스레드
@@ -257,7 +263,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                         <span>오늘의 핵심 사건 경영진 브리핑 (Universal Intelligence Executive Summary)</span>
                     </div>
                     <h2 class="text-xl font-extrabold text-white tracking-tight leading-snug">
-                        체코 원전 투자 주도권 충돌과 북미 SMR 공급망 수주가 오늘의 핵심 화두입니다.
+                        대미 원전 투자 주도권 갈등과 미국 DOE 지원 기반 조기 수주 기대감이 공존합니다.
                     </h2>
                 </div>
                 <span class="hidden md:inline-flex items-center px-3 py-1 text-xs font-medium text-gray-300 bg-gray-800/80 rounded-lg border border-gray-700">
@@ -270,26 +276,26 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
                     <div class="flex items-center space-x-2 text-amber-400 text-xs font-bold mb-1.5">
                         <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
-                        <span>[주요 갈등] 대미 원전 투자 충돌</span>
+                        <span>[주도권 갈등] 미국 AP1000 고집에 韓 난색</span>
                     </div>
-                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">미국형 원전 고집에 韓 난색… 대미 투자 주도권 및 손실 분담 문제 부각</p>
-                    <p class="text-xs text-gray-400 mt-2">이데일리 단독 보도 후속 2건 연결 (유사도 0.91)</p>
+                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">미국 원전 10기 추진 속 韓 시공·자금 동원 대비 손실 분담 및 주도권 리스크 부각</p>
+                    <p class="text-xs text-gray-400 mt-2">이데일리 단독 보도 2건 연결 (사건 #94)</p>
                 </div>
                 <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
                     <div class="flex items-center space-x-2 text-cyan-400 text-xs font-bold mb-1.5">
                         <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
-                        <span>[기술 선점] SMR 3사 공급망 확보</span>
+                        <span>[수주 조기화] 美 DOE 지원 및 선발주 기대</span>
                     </div>
-                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">두산에너빌, 美 SMR 3사 공급망 확보 완료… 글로벌 원전 확장 가속</p>
-                    <p class="text-xs text-gray-400 mt-2">서울경제TV, 국민일보 등 2건 연결 (유사도 0.84)</p>
+                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">KB증권 목표가 14만원 상향… 미국 원전 기자재 조기 발주 수혜 전망</p>
+                    <p class="text-xs text-gray-400 mt-2">KB증권 분석 및 후속 보도 9건 연결 (사건 #93)</p>
                 </div>
                 <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
                     <div class="flex items-center space-x-2 text-emerald-400 text-xs font-bold mb-1.5">
                         <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-                        <span>[설비투자/M&A] 웨스팅하우스 공동 인수 제안</span>
+                        <span>[설비투자/M&A] 웨스팅하우스 지분 인수 제안</span>
                     </div>
-                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">美 정부의 한-미 공동 SPC 설립 제안… 한수원 지재권 갈등 해소 및 수출 가속</p>
-                    <p class="text-xs text-gray-400 mt-2">기관 순매수 992억 원 유입 (유사도 0.85)</p>
+                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">美 정부의 웨스팅하우스 지분 인수 제안… 한수원 지재권 갈등 해소 및 수출 가속</p>
+                    <p class="text-xs text-gray-400 mt-2">조세일보, 한국경제 2건 연결 (사건 #96)</p>
                 </div>
             </div>
         </section>
@@ -321,22 +327,22 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 <p class="text-xs text-emerald-400 font-medium">사건 타임라인 스레드</p>
                 <div class="flex items-baseline space-x-2 mt-1">
                     <span class="text-2xl font-bold text-emerald-400">{len(threads_data)}</span>
-                    <span class="text-xs text-gray-500">개 사건 묶음</span>
+                    <span class="text-xs text-gray-500">개 독립 사건</span>
                 </div>
             </div>
         </section>
 
         <!-- ================================================================= -->
-        <!-- TAB 1: Event Timeline Hub (gemini-embedding-2) -->
+        <!-- TAB 1: Event Timeline Hub (Complete-Linkage Agglomerative) -->
         <!-- ================================================================= -->
         <section id="tab-threads" class="space-y-4">
             <div class="flex items-center justify-between mb-2">
                 <div class="flex items-center space-x-2">
                     <h3 class="text-lg font-bold text-white flex items-center">
                         <i class="fa-solid fa-code-merge text-cyan-400 mr-2"></i>
-                        gemini-embedding-2 기업 사건 타임라인 스레드 (Broker-Aware v2.0)
+                        기업 핵심 사건 타임라인 스레드 (Complete-Linkage v2.2)
                     </h3>
-                    <span class="text-xs bg-gray-800 text-gray-400 px-2.5 py-0.5 rounded-full border border-gray-700">7-Key 팩트 벡터 클러스터링</span>
+                    <span class="text-xs bg-gray-800 text-gray-400 px-2.5 py-0.5 rounded-full border border-gray-700">{len(threads_data)}개 독립 사건군</span>
                 </div>
                 <span class="text-xs text-gray-400">사건 카드를 클릭하면 시간순 후속 보도 타임라인이 펼쳐집니다.</span>
             </div>
@@ -348,19 +354,31 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         </section>
 
         <!-- ================================================================= -->
-        <!-- TAB 2: Cleaned Core Articles with 7-Key Fact Badges -->
+        <!-- TAB 2: Cleaned Core Articles (Enterprise List View) -->
         <!-- ================================================================= -->
         <section id="tab-articles" class="hidden space-y-4">
-            <div class="flex items-center justify-between mb-2">
-                <h3 class="text-lg font-bold text-white flex items-center">
-                    <i class="fa-solid fa-newspaper text-emerald-400 mr-2"></i>
-                    구조화 팩트 기반 기업 핵심 기사 ({company_count}건)
-                </h3>
-                <span class="text-xs text-gray-400">7대 범용 인텔리전스 스키마 완비</span>
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-gray-800">
+                <div>
+                    <h3 class="text-lg font-bold text-white flex items-center">
+                        <i class="fa-solid fa-list-check text-cyan-400 mr-2"></i>
+                        7-Key 구조화 팩트 기사 리스트 ({company_count}건)
+                    </h3>
+                    <p class="text-xs text-gray-400 mt-0.5">각 기사별 C-Level 헤드라인, 핵심 팩트 요약, 정량 지표, 엔티티가 컴팩트 리스트로 정리되어 있습니다.</p>
+                </div>
+                <!-- Category Filter Buttons -->
+                <div class="flex flex-wrap gap-1.5 text-xs" id="categoryFilterBar">
+                    <button onclick="filterCategory('ALL')" class="px-2.5 py-1 rounded-lg bg-cyan-600 text-white font-semibold shadow-sm" id="catBtn-ALL">전체 ({company_count})</button>
+                    <button onclick="filterCategory('수주/계약')" class="px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300 hover:text-white" id="catBtn-수주/계약">수주/계약</button>
+                    <button onclick="filterCategory('설비투자/M&A')" class="px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300 hover:text-white" id="catBtn-설비투자/M&A">설비투자/M&A</button>
+                    <button onclick="filterCategory('실적/재무')" class="px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300 hover:text-white" id="catBtn-실적/재무">실적/재무</button>
+                    <button onclick="filterCategory('신제품/기술')" class="px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300 hover:text-white" id="catBtn-신제품/기술">신제품/기술</button>
+                    <button onclick="filterCategory('리스크/규제')" class="px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300 hover:text-white" id="catBtn-리스크/규제">리스크/규제</button>
+                </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="articlesContainer">
-                <!-- Injected via JavaScript -->
+            <!-- Modern Enterprise List Container -->
+            <div class="space-y-2.5" id="articlesContainer">
+                <!-- Injected via JavaScript as compact rows -->
             </div>
         </section>
 
@@ -486,7 +504,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                     <!-- Core Summary Bullets -->
                     <div class="bg-gray-800/60 rounded-xl p-4 border border-gray-700/60">
                         <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5 flex items-center">
-                            <i class="fa-solid fa-list-check text-cyan-400 mr-1.5"></i>경영진 핵심 요약 / 판정 내용
+                            <i class="fa-solid fa-list-check text-cyan-400 mr-1.5"></i>경영진 핵심 요약 (3-Bullets)
                         </h4>
                         <ul id="modalBullets" class="text-sm text-gray-200 space-y-1.5 leading-relaxed font-normal">
                             <!-- Bullets -->
@@ -555,6 +573,8 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         const FILTERED_ARTICLES = {market_articles_json};
         const ALL_ARTICLES = {all_articles_json};
 
+        let currentCategoryFilter = 'ALL';
+
         // Render Corporate Threads
         function renderThreads() {{
             const container = document.getElementById('threadsContainer');
@@ -571,7 +591,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                     membersHtml = `
                         <div id="thread-corp-details-${{idx}}" class="hidden mt-4 pt-4 border-t border-gray-800/80 space-y-3">
                             <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                                <i class="fa-solid fa-code-branch mr-1 text-cyan-400"></i>시간순 후속 보도 타임라인 (Broker-Aware v2.0)
+                                <i class="fa-solid fa-code-branch mr-1 text-cyan-400"></i>시간순 후속 보도 타임라인 (Complete-Linkage v2.2)
                             </p>
                             ${{t.members.map((m, mIdx) => `
                                 <div class="flex items-start space-x-3 bg-gray-900/60 p-3 rounded-lg border border-gray-800/60 hover:border-cyan-500/30"
@@ -604,7 +624,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                         <div class="flex items-start space-x-3">
                             <div class="mt-1">
                                 <span class="px-2.5 py-1 text-xs font-bold rounded-lg ${{isMulti ? 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30' : 'bg-gray-800 text-gray-400'}}">
-                                    ${{isMulti ? `사건 #${{t.thread_id}} (${{t.count}}건 연결)` : '단독 보도'}}
+                                    ${{isMulti ? `사건 #${{t.thread_id}} (${{t.count}}건 연결)` : '단독 사건'}}
                                 </span>
                             </div>
                             <div>
@@ -695,58 +715,136 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             if (el) el.classList.toggle('hidden');
         }}
 
-        // Render Core Articles
+        // Category Color Mapping Helper
+        function getCategoryBadge(cat) {{
+            const colorMap = {{
+                '수주/계약': 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30',
+                '설비투자/M&A': 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+                '실적/재무': 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                '신제품/기술': 'bg-blue-500/20 text-blue-300 border-blue-500/30',
+                '리스크/규제': 'bg-red-500/20 text-red-400 border-red-500/30',
+                '지배구조/인사': 'bg-indigo-500/20 text-indigo-300 border-indigo-500/30',
+                '경영일반/기타': 'bg-gray-800 text-gray-300 border-gray-700'
+            }};
+            const cls = colorMap[cat] || 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+            return `<span class="px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${{cls}}">${{cat}}</span>`;
+        }}
+
+        // Filter by Category
+        function filterCategory(cat) {{
+            currentCategoryFilter = cat;
+            const buttons = document.querySelectorAll('#categoryFilterBar button');
+            buttons.forEach(btn => {{
+                btn.className = "px-2.5 py-1 rounded-lg bg-gray-800 text-gray-300 hover:text-white transition-all";
+            }});
+            const active = document.getElementById(`catBtn-${{cat}}`);
+            if (active) active.className = "px-2.5 py-1 rounded-lg bg-cyan-600 text-white font-semibold shadow-sm";
+            renderArticles();
+        }}
+
+        // Render Cleaned Core Articles as Modern Enterprise List View
         function renderArticles() {{
             const container = document.getElementById('articlesContainer');
             container.innerHTML = '';
 
-            ARTICLES.forEach(a => {{
+            let list = ARTICLES;
+            if (currentCategoryFilter !== 'ALL') {{
+                list = ARTICLES.filter(a => {{
+                    let s_intel = null;
+                    try {{ if (a.structured_intelligence) s_intel = JSON.parse(a.structured_intelligence); }} catch(e) {{}}
+                    const cat = (s_intel && s_intel.event_category) ? s_intel.event_category : (a.event_category || '경영일반/기타');
+                    return cat === currentCategoryFilter;
+                }});
+            }}
+
+            if (list.length === 0) {{
+                container.innerHTML = `
+                    <div class="glass-card rounded-xl p-8 text-center text-gray-500">
+                        <i class="fa-solid fa-folder-open text-2xl mb-2"></i>
+                        <p class="text-sm">해당 카테고리의 구조화 기사가 없습니다.</p>
+                    </div>
+                `;
+                return;
+            }}
+
+            list.forEach(a => {{
                 let s_intel = null;
                 try {{
                     if (a.structured_intelligence) s_intel = JSON.parse(a.structured_intelligence);
                 }} catch(e) {{}}
 
                 const headline = (s_intel && s_intel.executive_headline) ? s_intel.executive_headline : a.title;
-                const cat = (s_intel && s_intel.event_category) ? s_intel.event_category : (a.event_category || '경영일반');
+                const cat = (s_intel && s_intel.event_category) ? s_intel.event_category : (a.event_category || '경영일반/기타');
                 const bullets = (s_intel && s_intel.core_summary_bullets) ? s_intel.core_summary_bullets : [];
                 const metrics = (s_intel && s_intel.key_metrics) ? s_intel.key_metrics : [];
+                const entities = (s_intel && s_intel.key_entities) ? s_intel.key_entities : [];
+                const threadId = a.thread_id ? `#${{a.thread_id}}` : null;
 
-                const card = document.createElement('div');
-                card.className = "glass-card rounded-xl p-5 border border-gray-800 glass-card-hover cursor-pointer flex flex-col justify-between";
-                card.onclick = () => openModal(a);
+                const row = document.createElement('div');
+                row.className = "glass-card rounded-xl p-4 border border-gray-800/90 list-row-hover cursor-pointer transition-all";
+                row.onclick = () => openModal(a);
 
-                let metricsBadgesHtml = '';
+                // Metric Badges (Up to 3)
+                let metricsHtml = '';
                 if (metrics.length > 0) {{
-                    metricsBadgesHtml = `
-                        <div class="flex flex-wrap gap-1.5 mt-2.5">
-                            ${{metrics.slice(0, 2).map(m => `
-                                <span class="px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                                    ${{m.metric_name}}: ${{m.value}}
-                                </span>
-                            `).join('')}}
-                        </div>
-                    `;
+                    metricsHtml = metrics.slice(0, 3).map(m => `
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
+                            <i class="fa-solid fa-chart-simple mr-1 text-[9px]"></i>${{m.metric_name}}: ${{m.value}}
+                        </span>
+                    `).join('');
                 }}
 
-                card.innerHTML = `
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center space-x-1.5">
-                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">${{a.media_name || '언론사'}}</span>
-                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">${{cat}}</span>
+                // Entity Chips (Up to 4)
+                let entitiesHtml = '';
+                if (entities.length > 0) {{
+                    entitiesHtml = entities.slice(0, 4).map(e => `
+                        <span class="text-[11px] text-gray-400 bg-gray-900/80 px-2 py-0.5 rounded border border-gray-800">
+                            @${{e}}
+                        </span>
+                    `).join('');
+                }}
+
+                row.innerHTML = `
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1 min-w-0 space-y-2">
+                            <!-- Top Metadata Row -->
+                            <div class="flex flex-wrap items-center gap-2">
+                                ${{getCategoryBadge(cat)}}
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700">${{a.media_name || '언론사'}}</span>
+                                <span class="text-xs text-gray-500"><i class="fa-regular fa-clock mr-1"></i>${{a.published_at || ''}}</span>
+                                ${{threadId ? `<span class="text-[11px] font-semibold px-2 py-0.5 rounded bg-cyan-950/60 text-cyan-400 border border-cyan-500/30">사건 ${{threadId}}</span>` : ''}}
                             </div>
-                            <span class="text-xs text-gray-500">${{a.published_at || ''}}</span>
+
+                            <!-- Executive Headline -->
+                            <h4 class="text-base font-extrabold text-gray-100 hover:text-cyan-400 transition-colors leading-snug">
+                                ${{headline}}
+                            </h4>
+
+                            <!-- Summary 1st Bullet Preview -->
+                            ${{bullets.length > 0 ? `
+                                <p class="text-xs text-gray-300 line-clamp-1 leading-relaxed font-normal">
+                                    <span class="text-cyan-400 font-bold">•</span> ${{bullets[0]}}
+                                </p>
+                            ` : `
+                                <p class="text-xs text-gray-500 line-clamp-1">${{a.chosen_text || a.body || ''}}</p>
+                            `}}
+
+                            <!-- Bottom Metrics & Entities Row -->
+                            <div class="flex flex-wrap items-center gap-2 pt-1">
+                                ${{metricsHtml}}
+                                ${{entitiesHtml}}
+                            </div>
                         </div>
-                        <h4 class="text-sm font-bold text-gray-100 hover:text-cyan-400 line-clamp-2 leading-snug">${{headline}}</h4>
-                        ${{bullets.length > 0 ? `<p class="text-xs text-gray-300 line-clamp-2 mt-2 leading-relaxed font-normal">${{bullets[0]}}</p>` : `<p class="text-xs text-gray-400 line-clamp-2 mt-2 leading-relaxed">${{a.chosen_text || a.body || ''}}</p>`}}
-                        ${{metricsBadgesHtml}}
-                    </div>
-                    <div class="mt-4 pt-3 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-500">
-                        <span>7대 팩트 구조화 완료</span>
-                        <span class="text-cyan-400 hover:underline">인텔리전스 리더 &rarr;</span>
+
+                        <!-- Right Action Arrow -->
+                        <div class="hidden sm:flex flex-col items-end justify-between h-full pt-1">
+                            <span class="text-xs text-cyan-400 font-semibold flex items-center hover:underline">
+                                7-Key 팩트 <i class="fa-solid fa-chevron-right ml-1.5 text-xs"></i>
+                            </span>
+                        </div>
                     </div>
                 `;
-                container.appendChild(card);
+                container.appendChild(row);
             }});
         }}
 
@@ -981,10 +1079,10 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 const headline = (s_intel && s_intel.executive_headline) ? s_intel.executive_headline : a.title;
 
                 const card = document.createElement('div');
-                card.className = "glass-card rounded-xl p-5 border border-cyan-500/40 glass-card-hover cursor-pointer";
+                card.className = "glass-card rounded-xl p-4 border border-cyan-500/40 list-row-hover cursor-pointer";
                 card.onclick = () => openModal(a);
                 card.innerHTML = `
-                    <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center justify-between mb-1">
                         <span class="text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-400">${{a.media_name}}</span>
                         <span class="text-xs text-gray-500">${{a.published_at}}</span>
                     </div>
