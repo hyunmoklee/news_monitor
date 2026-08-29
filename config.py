@@ -42,6 +42,11 @@ VERTEX_LOCATION = os.getenv("VERTEX_LOCATION", "global")
 DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", os.getenv("DEFAULT_GEMINI_MODEL", "gemini-3.7-flash"))
 GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
 
+# API Tier Mode: 'gcp_enterprise' (Batch Embedding & High-Concurrency Async) vs 'aistudio_free' (Single Sequential & 4.2s Delay)
+API_TIER_MODE = os.getenv("API_TIER_MODE", "gcp_enterprise").lower()
+CURRENT_REFERENCE_DATE = os.getenv("CURRENT_REFERENCE_DATE", "2026-08-25")
+
+
 
 
 def get_gemini_client():

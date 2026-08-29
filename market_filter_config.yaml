@@ -3,14 +3,17 @@ dedup:
   title_jaccard_threshold: 0.85
   window_hours: 72
 llm:
+  api_tier_mode: gcp_enterprise # 'gcp_enterprise' (Fast Batch/Parallel) or 'aistudio_free' (Safe 4.2s delay)
+  concurrency_limit: 8
+  free_tier_delay: 4.2
   max_retries: 3
   model: gemini-3.7-flash
-
   provider: google
-  rate_limit_sleep: 4.2
+  rate_limit_sleep: 0.0 # Dynamically controlled by api_tier_mode
   temperature: 0.0
   timeout_seconds: 15.0
   fallback_action: manual_queue
+
 
 market_jargon:
   fluctuation_keywords:

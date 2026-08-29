@@ -16,11 +16,11 @@ try:
 except Exception:
     pass
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from config import DB_PATH
-
-from .embedder import get_text_embedding
+from .embedder import get_text_embedding, get_batch_text_embeddings, compute_cosine_similarity
 from .clusterer import cluster_articles_by_event
+
+
 
 # 30+ Major Generic Brokerage & Research Entities
 BROKER_ENTITIES = [
@@ -131,42 +131,47 @@ def build_event_threads(
     print(f"\n🧵 [Corporate Event Threading v2.0] Processing {len(rows)} company core articles with gemini-embedding-2 (Broker-Aware)...")
     
     articles = []
+    texts_to_embed = []
+    meta_list = []
     for r in rows:
         title = r["title"]
         body = r["chosen_text"] or r["body"] or ""
-        broker = extract_broker_entity(title, body)
-
         s_intel = {}
         try:
             if r["structured_intelligence"]:
                 s_intel = json.loads(r["structured_intelligence"])
         except Exception:
             pass
-
+            
+        broker = extract_broker_entity(title, body)
+        
         if s_intel and s_intel.get("executive_headline"):
             h_line = s_intel.get("executive_headline")
-            cat = s_intel.get("event_category") or r.get("event_category") or ""
+            cat = s_intel.get("event_category", "일반")
             entities = ", ".join(s_intel.get("key_entities", []))
             text_to_embed = f"[{cat}] [발행기관: {broker}] {h_line}\n주요 주체: {entities}"
         else:
             lead = body[:200]
             text_to_embed = f"[발행기관: {broker}] {title}\n{lead}"
 
-        vec = get_text_embedding(text_to_embed)
-        
-        articles.append({
+        texts_to_embed.append(text_to_embed)
+        meta_list.append({
             "url": r["url"],
             "title": s_intel.get("executive_headline") or title,
             "original_title": title,
             "published_at": r["published_at"] or r["created_at"],
             "media_name": r["media_name"],
-            "broker": broker,
-            "embedding": vec
+            "broker": broker
         })
 
-        
+    vectors = get_batch_text_embeddings(texts_to_embed, concurrency=15)
+    for meta, vec in zip(meta_list, vectors):
+        meta["embedding"] = vec
+        articles.append(meta)
+
     # 사건 단위 클러스터링
     clusters = cluster_articles_by_event(articles, similarity_threshold=similarity_threshold)
+
     
     # DB 적재
     conn = sqlite3.connect(db_path)
@@ -255,22 +260,28 @@ def build_market_event_threads(
     print(f"\n🗑️ [Filtered Market News Threading] Clustering {len(rows)} filtered articles into grouped threads...")
     
     articles = []
+    texts_to_embed = []
+    meta_list = []
     for r in rows:
         title = r["title"]
         lead = (r["chosen_text"] or r["body"] or "")[:150]
         text_to_embed = f"{title}\n{lead}"
-        vec = get_text_embedding(text_to_embed)
-        
-        articles.append({
+        texts_to_embed.append(text_to_embed)
+        meta_list.append({
             "url": r["url"],
             "title": title,
             "published_at": r["published_at"] or r["created_at"],
-            "media_name": r["media_name"],
-            "embedding": vec
+            "media_name": r["media_name"]
         })
+
+    vectors = get_batch_text_embeddings(texts_to_embed, concurrency=15)
+    for meta, vec in zip(meta_list, vectors):
+        meta["embedding"] = vec
+        articles.append(meta)
         
     # 클러스터링
     clusters = cluster_articles_by_event(articles, similarity_threshold=similarity_threshold)
+
     
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()

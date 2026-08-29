@@ -177,126 +177,97 @@ async def execute_backfill(
     print(f"[*] Step 2 (Dedup): Exact duplicate detection complete.")
     
     # -------------------------------------------------------------
-    # Step 3: In-Memory Scoring & LLM Inference (I/O Isolation)
+    # Step 3: In-Memory Scoring & High-Concurrency Async LLM Inference
     # -------------------------------------------------------------
     now_ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    update_payloads = []
     
-    llm_call_count = 0
-    llm_failure_count = 0
+    tier_mode = config.get("llm", {}).get("api_tier_mode", "gcp_enterprise")
+    max_concurrency = config.get("llm", {}).get("concurrency_limit", 8) if tier_mode == "gcp_enterprise" else 1
+    sem = asyncio.Semaphore(max_concurrency)
     
-    for idx, art in enumerate(deduped):
+    print(f"[*] Step 3 (Inference): Starting inference in [{tier_mode.upper()}] mode (Concurrency: {max_concurrency})...")
+
+    async def process_article(art, idx):
         u = art["url"]
         t = art.get("title") or ""
         body = art.get("chosen_text") or art.get("body") or ""
         is_exact_dup = art.get("is_exact_dup", 0)
-        
         target_company = config.get("target_company", {}).get("name", "두산에너빌리티")
 
         if is_exact_dup == 1:
-            update_payloads.append((1, 1, 0, "n/a", target_version, now_ts, None, None, u))
-            continue
-            
+            return (1, 1, 0, "n/a", target_version, now_ts, None, None, u, False, False)
+
         score, detail = calculate_market_score(t, body, config, company_list)
         group, rule_is_market = evaluate_decision(score, config)
 
-        
+        is_mkt = None
+        status = "n/a"
+        called_llm = False
+        failed_llm = False
+
         if group == "Group A":
             is_mkt = False
             status = "n/a"
         elif group == "Group B":
             is_mkt = True
             status = "n/a"
-        else: # Group C (Score between -20 and 20)
-            llm_call_count += 1
+        else: # Group C
+            called_llm = True
             lead_300 = body[:300]
-            
-            # [B-1 Boundary Tests on 20-Sample LLM Dataset]
-            if inject_error == "case_a_5pct":
-                # Case A: Exactly 1 failure on the 20th call (1/20 = 5.0% <= 5.0% threshold -> PASS)
-                if llm_call_count == 20:
-                    print(f"  [Boundary Test Case A] Injecting 1st failure on Call #{llm_call_count} (Total Calls: 20, Failures: 1 -> 5.0%)...")
+            async with sem:
+                if inject_error == "case_a_5pct" and idx == 19:
                     is_mkt, status = None, "manual_review_needed"
-                    llm_failure_count += 1
+                    failed_llm = True
+                elif inject_error == "timeout":
+                    is_mkt, status = None, "manual_review_needed"
+                    failed_llm = True
                 else:
-                    is_mkt, status = True, "success"
-            elif inject_error == "case_b_10pct":
-                # Case B (10%): 1 failure on 10th call (1/10 = 10.0% > 5.0% -> ABORT)
-                if llm_call_count == 10:
-                    print(f"  [Boundary Test Case B] Injecting failure on Call #{llm_call_count} (1/10 = 10.0% > 5.0%)...")
-                    is_mkt, status = None, "manual_review_needed"
-                    llm_failure_count += 1
-                else:
-                    is_mkt, status = True, "success"
-            elif inject_error == "case_b_strict_5_2pct":
-                # Ultra-strict Boundary: 1st failure on 20th (1/20 = 5.0% -> PASS), 2nd failure on 38th (2/38 = 5.26% > 5.0% -> ABORT)
-                if llm_call_count == 20:
-                    print(f"  [Strict Boundary Test] Call #20: 1st failure (1/20 = 5.00% <= 5.0% -> PASS)...")
-                    is_mkt, status = None, "manual_review_needed"
-                    llm_failure_count += 1
-                elif llm_call_count == 38:
-                    print(f"  [Strict Boundary Test] Call #38: 2nd failure (2/38 = 5.26% > 5.0% -> STRICT ABORT)...")
-                    is_mkt, status = None, "manual_review_needed"
-                    llm_failure_count += 1
-                else:
-                    is_mkt, status = True, "success"
-            elif inject_error == "db_write_fail":
-                # Simulated successful LLM responses to ensure execution reaches Step 4 DB transaction
-                is_mkt, status = True, "success"
-            elif inject_error == "timeout":
-                print(f"  [Fault Injection] Simulating Timeout on Call #{llm_call_count} ({t[:30]}...)")
-                is_mkt, status = None, "manual_review_needed"
-                llm_failure_count += 1
-            else:
-                # Real LLM API Call with full_body for intelligent context extraction
-                is_mkt, status = await call_gemini_fallback(t, lead_300, config, full_body=body)
-                if status != "success":
+                    is_mkt, status = await call_gemini_fallback(t, lead_300, config, full_body=body)
+                    if status != "success":
+                        failed_llm = True
+                        is_mkt = None
+                        status = "manual_review_needed"
 
-                    llm_failure_count += 1
-                    is_mkt = None
-                    status = "manual_review_needed"
-
-                    
-            # Check Short-Circuit Threshold (> 5.0% Failure Rate strictly evaluated at min 10 calls or upon batch completion)
-            if llm_call_count >= 10:
-                failure_rate = (llm_failure_count / llm_call_count)
-                if failure_rate > 0.05: # Strictly greater than 5.0%
-                    err_msg = (
-                        f"LLM API Failure Rate ({failure_rate*100:.2f}%) strictly exceeded maximum threshold (5.0%)!\n"
-                        f"Total Calls: {llm_call_count}, Failures: {llm_failure_count}\n"
-                        f"Triggering Short-Circuit shutdown to protect database and prevent resource exhaustion."
-                    )
-                    print(f"\n🚨 [CRITICAL SHORT-CIRCUIT TRIGGERED]\n{err_msg}")
-                    send_alert_notification("Short-Circuit: LLM Failure Rate > 5%", err_msg, config)
-                    print(f"[*] Aborting backfill process immediately.")
-                    return
-                else:
-                    print(f"  [Boundary Check Call #{llm_call_count}] Failure Rate: {failure_rate*100:.2f}% <= 5.0% Threshold -> Pipeline Continues.")
-
-                
-        # [v2.0 Structured Intelligence Extraction for Confirmed Company Articles]
+        # [v2.3 Precision Structured Intelligence Extraction]
         structured_intel_json = None
         event_cat = None
         if is_mkt is False:
-            from extractor.intelligence_extractor import extract_intelligence_async
-            intel_res = await extract_intelligence_async(t, body, target_company=target_company)
-            if intel_res.get("success") and intel_res.get("intelligence"):
-                structured_intel_json = json.dumps(intel_res["intelligence"], ensure_ascii=False)
-                event_cat = intel_res["intelligence"].get("event_category")
+            async with sem:
+                from extractor.intelligence_extractor import extract_intelligence_async
+                intel_res = await extract_intelligence_async(t, body, target_company=target_company)
+                if intel_res.get("success") and intel_res.get("intelligence"):
+                    structured_intel_json = json.dumps(intel_res["intelligence"], ensure_ascii=False)
+                    event_cat = intel_res["intelligence"].get("event_category")
 
-
-        update_payloads.append((
-            0, 
-            1 if is_mkt is True else (0 if is_mkt is False else None), 
-            score, 
-            status, 
-            target_version, 
-            now_ts, 
+        return (
+            0,
+            1 if is_mkt is True else (0 if is_mkt is False else None),
+            score,
+            status,
+            target_version,
+            now_ts,
             structured_intel_json,
             event_cat,
-            u
-        ))
-        
+            u,
+            called_llm,
+            failed_llm
+        )
+
+    tasks = [process_article(art, idx) for idx, art in enumerate(deduped)]
+    results = await asyncio.gather(*tasks)
+
+    llm_call_count = sum(1 for r in results if r[9])
+    llm_failure_count = sum(1 for r in results if r[10])
+    update_payloads = [r[:9] for r in results]
+
+    if llm_call_count >= 10:
+        failure_rate = (llm_failure_count / llm_call_count)
+        if failure_rate > 0.05:
+            err_msg = f"LLM API Failure Rate ({failure_rate*100:.2f}%) exceeded 5.0%! Aborting."
+            print(f"\n🚨 [CRITICAL SHORT-CIRCUIT TRIGGERED]\n{err_msg}")
+            send_alert_notification("Short-Circuit: LLM Failure Rate > 5%", err_msg, config)
+            return
+
     print(f"[*] Step 3 (Inference): Evaluated {len(update_payloads)} records (LLM Calls: {llm_call_count}, Failures: {llm_failure_count}).")
     
     # -------------------------------------------------------------

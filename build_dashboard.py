@@ -784,14 +784,28 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 row.className = "glass-card rounded-xl p-4 border border-gray-800/90 list-row-hover cursor-pointer transition-all";
                 row.onclick = () => openModal(a);
 
-                // Metric Badges (Up to 3)
+                // Metric Badges v2.3 (Up to 3)
                 let metricsHtml = '';
                 if (metrics.length > 0) {{
-                    metricsHtml = metrics.slice(0, 3).map(m => `
-                        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-500/10 text-amber-300 border border-amber-500/20">
-                            <i class="fa-solid fa-chart-simple mr-1 text-[9px]"></i>${{m.metric_name}}: ${{m.value}}
-                        </span>
-                    `).join('');
+                    metricsHtml = metrics.slice(0, 3).map(m => {{
+                        const val = m.formatted_value || m.value || '';
+                        const conf = m.confidence_level || 'CONFIRMED';
+                        const period = m.target_period ? ` (${{m.target_period}})` : '';
+                        let confClass = 'bg-emerald-500/10 text-emerald-300 border-emerald-500/20';
+                        let confIcon = 'fa-check';
+                        if (conf === 'ESTIMATE') {{
+                            confClass = 'bg-amber-500/10 text-amber-300 border-amber-500/20';
+                            confIcon = 'fa-chart-line';
+                        }} else if (conf === 'UNCONFIRMED_RUMOR') {{
+                            confClass = 'bg-red-500/10 text-red-300 border-red-500/20';
+                            confIcon = 'fa-triangle-exclamation';
+                        }}
+                        return `
+                            <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold border ${{confClass}}">
+                                <i class="fa-solid ${{confIcon}} mr-1 text-[9px]"></i>${{m.metric_name}}: ${{val}}${{period}}
+                            </span>
+                        `;
+                    }}).join('');
                 }}
 
                 // Entity Chips (Up to 4)
@@ -878,7 +892,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 headlineLabel.innerHTML = '<i class="fa-solid fa-filter-circle-xmark mr-1 text-amber-400"></i>제외된 시황 기사 (Audit Inspector)';
             }} else {{
                 statusBadge.classList.add('hidden');
-                headlineLabel.innerHTML = '<i class="fa-solid fa-bolt mr-1"></i>C-Level Executive Headline';
+                headlineLabel.innerHTML = '<i class="fa-solid fa-bolt mr-1"></i>C-Level Executive Headline (Universal v2.3)';
             }}
 
             // Render Bullets
@@ -899,25 +913,43 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 bulletsEl.innerHTML = `<li>${{a.title}}</li>`;
             }}
 
-            // Render Metrics
+            // Render Metrics v2.3
             const metricsWrap = document.getElementById('modalMetricsWrapper');
             const metricsGrid = document.getElementById('modalMetricsGrid');
             metricsGrid.innerHTML = '';
             if (metrics.length > 0) {{
                 metricsWrap.classList.remove('hidden');
                 metrics.forEach(m => {{
+                    const val = m.formatted_value || m.value || '';
+                    const conf = m.confidence_level || 'CONFIRMED';
+                    const period = m.target_period ? `<span class="text-gray-400 text-[10px] ml-1.5">[${{m.target_period}}]</span>` : '';
+                    const source = m.source_entity ? `<span class="text-[10px] text-cyan-400 block mt-0.5">출처: ${{m.source_entity}}</span>` : '';
+
+                    let confBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">공식확정</span>';
+                    if (conf === 'ESTIMATE') {{
+                        confBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">증권사추정</span>';
+                    }} else if (conf === 'UNCONFIRMED_RUMOR') {{
+                        confBadge = '<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-red-500/20 text-red-400 border border-red-500/30">미확인/보도</span>';
+                    }}
+
                     const mBox = document.createElement('div');
-                    mBox.className = "bg-gray-800/80 p-2.5 rounded-lg border border-gray-700/80";
+                    mBox.className = "bg-gray-800/80 p-3 rounded-lg border border-gray-700/80 space-y-1";
                     mBox.innerHTML = `
-                        <p class="text-[11px] text-gray-400 font-medium">${{m.metric_name}}</p>
-                        <p class="text-sm font-bold text-amber-400 mt-0.5">${{m.value}}</p>
-                        ${{m.context ? `<p class="text-[10px] text-gray-500 mt-0.5 truncate">${{m.context}}</p>` : ''}}
+                        <div class="flex items-center justify-between">
+                            <span class="text-[11px] text-gray-400 font-medium">${{m.metric_name}}</span>
+                            ${{confBadge}}
+                        </div>
+                        <p class="text-base font-bold text-amber-400">${{val}}${{period}}</p>
+                        ${{source}}
+                        ${{m.context ? `<p class="text-[10px] text-gray-400 leading-tight pt-0.5">${{m.context}}</p>` : ''}}
                     `;
                     metricsGrid.appendChild(mBox);
                 }});
             }} else {{
                 metricsWrap.classList.add('hidden');
             }}
+
+
 
             // Render Milestones
             const milesWrap = document.getElementById('modalMilestonesWrapper');
