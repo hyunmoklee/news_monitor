@@ -36,12 +36,13 @@ SCORING_CONFIG_PATH = os.getenv("SCORING_CONFIG_PATH", "scoring_config.yaml")
 PUBLISHER_RULES_PATH = os.getenv("PUBLISHER_RULES_PATH", "publisher_rules.yaml")
 HARD_CASES_DIR = os.getenv("HARD_CASES_DIR", "hard_cases")
 
-# Gemini / Vertex AI Configuration
 USE_VERTEX_AI = os.getenv("USE_VERTEX_AI", "false").lower() == "true"
 VERTEX_PROJECT_ID = os.getenv("VERTEX_PROJECT_ID", "project-0d54bb31-d75f-4758-830")
-VERTEX_LOCATION = os.getenv("VERTEX_LOCATION", "asia-northeast3")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", os.getenv("DEFAULT_GEMINI_MODEL", "gemini-2.5-flash"))
+VERTEX_LOCATION = os.getenv("VERTEX_LOCATION", "global")
+DEFAULT_GEMINI_MODEL = os.getenv("GEMINI_MODEL", os.getenv("DEFAULT_GEMINI_MODEL", "gemini-3.7-flash"))
+GEMINI_THINKING_BUDGET = int(os.getenv("GEMINI_THINKING_BUDGET", "0"))
+
+
 
 def get_gemini_client():
     """

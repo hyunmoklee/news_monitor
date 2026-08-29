@@ -4,13 +4,22 @@ from typing import List, Dict, Any, Optional
 
 GEMINI_SUPPORTED_MODELS: List[Dict[str, Any]] = [
     {
-        "id": "gemini-2.5-flash",
-        "name": "Gemini 2.5 Flash",
+        "id": "gemini-3.7-flash",
+        "name": "Gemini 3.7 Flash",
         "recommended": True,
-        "description": "최신 고속 경량 모델. 본문 정제 및 노이즈 제거 작업에 가장 추천됨.",
+        "description": "최신 하이브리드 추론 모델. 고속 처리와 심층 추론(Thinking)을 동시 지원.",
         "input_cost_per_1m": 0.075,
         "output_cost_per_1m": 0.30
     },
+    {
+        "id": "gemini-2.5-flash",
+        "name": "Gemini 2.5 Flash",
+        "recommended": False,
+        "description": "고속 경량 모델. 본문 정제 및 노이즈 제거 작업에 활용.",
+        "input_cost_per_1m": 0.075,
+        "output_cost_per_1m": 0.30
+    },
+
     {
         "id": "gemini-2.5-pro",
         "name": "Gemini 2.5 Pro",

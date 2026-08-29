@@ -13,7 +13,9 @@ async def call_gemini_fallback(
     config: Dict,
     api_key: str = None
 ) -> Tuple[bool, str]:
-    from config import get_gemini_client, DEFAULT_GEMINI_MODEL
+    from google.genai import types
+
+    from config import get_gemini_client, DEFAULT_GEMINI_MODEL, GEMINI_THINKING_BUDGET
     
     prompt = (
         f"당신은 금융 뉴스 분석기입니다.\n"
@@ -26,6 +28,7 @@ async def call_gemini_fallback(
     
     model_name = config.get("llm", {}).get("model", DEFAULT_GEMINI_MODEL)
     max_retries = config.get("llm", {}).get("max_retries", 3)
+    thinking_budget = config.get("llm", {}).get("thinking_budget", GEMINI_THINKING_BUDGET)
     
     try:
         client = get_gemini_client()
@@ -34,15 +37,18 @@ async def call_gemini_fallback(
         
     for attempt in range(max_retries + 1):
         try:
-            # google-genai async call
+            # google-genai async call with thinking config
+            gen_config = types.GenerateContentConfig(
+                temperature=0.0,
+                response_mime_type="application/json",
+                thinking_config=types.ThinkingConfig(thinking_budget=thinking_budget)
+            )
             response = await client.aio.models.generate_content(
                 model=model_name,
                 contents=prompt,
-                config={
-                    "temperature": 0.0,
-                    "response_mime_type": "application/json"
-                }
+                config=gen_config
             )
+
             
             text_resp = (response.text or "").strip()
             parsed = json.loads(text_resp)

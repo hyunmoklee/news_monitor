@@ -4,7 +4,8 @@ dedup:
   window_hours: 72
 llm:
   max_retries: 3
-  model: gemini-2.5-flash-lite
+  model: gemini-3.7-flash
+
   provider: google
   rate_limit_sleep: 4.2
   temperature: 0.0
