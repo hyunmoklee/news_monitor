@@ -499,10 +499,12 @@ def main():
         print(f"    - 16% LLM Section Accuracy  : {res['section_breakdown']['llm_grayzone_section']['accuracy']*100:.2f}% ({res['section_breakdown']['llm_grayzone_section']['count']} items)")
         print("="*70 + "\n")
     elif args.command == "run-threading":
-        from event_threading.timeline_engine import build_event_threads
+        from event_threading.timeline_engine import build_event_threads, build_market_event_threads
         build_event_threads(similarity_threshold=args.threshold)
+        build_market_event_threads(similarity_threshold=0.78)
 
     elif args.command == "healthcheck":
+
         run_healthcheck()
 
 

@@ -4,7 +4,7 @@ Executive News Intelligence Dashboard Generator v2.0
 - Bloomberg / Palantir / Modern SaaS Dark Glassmorphism UI
 - gemini-embedding-2 Event Timeline Hub (Interactive Flow)
 - 7-Key Universal Intelligence Fact Box Modal
-- Filtered Market News Inspection Tab (Audit & Review Section)
+- Filtered Market News Threading & Inspection Tab (Grouped by duplicate campaigns, e.g. 키움증권 60건 단일화)
 - Chart.js Analytics (Noise Filtering, Temporal Trend, Media Distribution)
 """
 import sqlite3
@@ -29,7 +29,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     
-    # 1. Fetch Event Threads (gemini-embedding-2)
+    # 1. Fetch Corporate Event Threads (gemini-embedding-2)
     cursor.execute("""
         SELECT thread_id, thread_title, article_count, first_event_at, last_event_at
         FROM article_threads
@@ -59,7 +59,38 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             "members": members
         })
 
-    # 2. Fetch All Articles
+    # 2. Fetch Filtered Market Threads (gemini-embedding-2 / Jaccard)
+    market_threads_data = []
+    try:
+        cursor.execute("""
+            SELECT thread_id, thread_title, article_count, first_event_at, last_event_at
+            FROM market_threads
+            ORDER BY article_count DESC, first_event_at DESC
+        """)
+        raw_m_threads = [dict(r) for r in cursor.fetchall()]
+        for t in raw_m_threads:
+            tid = t["thread_id"]
+            cursor.execute("""
+                SELECT m.url, m.similarity_score, m.is_key_anchor,
+                       a.title, a.media_name, a.published_at, a.chosen_text, a.body, a.market_score, a.is_exact_dup
+                FROM market_thread_members m
+                JOIN articles a ON m.url = a.url
+                WHERE m.thread_id = ?
+                ORDER BY a.published_at ASC
+            """, (tid,))
+            members = [dict(m) for m in cursor.fetchall()]
+            market_threads_data.append({
+                "thread_id": tid,
+                "title": t["thread_title"],
+                "count": t["article_count"],
+                "first_at": t["first_event_at"],
+                "last_at": t["last_event_at"],
+                "members": members
+            })
+    except Exception:
+        pass
+
+    # 3. Fetch All Articles
     cursor.execute("""
         SELECT url, title, media_name, journalist, author, body, chosen_text, keyword, 
                extraction_method, quality_score, quality_score_detail, 
@@ -98,6 +129,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
     # JSON Data for Frontend
     threads_json = json.dumps(threads_data, ensure_ascii=False)
+    market_threads_json = json.dumps(market_threads_data, ensure_ascii=False)
     company_articles_json = json.dumps(company_articles, ensure_ascii=False)
     market_articles_json = json.dumps(market_articles, ensure_ascii=False)
     all_articles_json = json.dumps(all_articles, ensure_ascii=False)
@@ -202,7 +234,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                         <i class="fa-solid fa-newspaper mr-1"></i>구조화 기사 ({company_count})
                     </button>
                     <button onclick="switchTab('filtered')" id="tabBtn-filtered" class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-amber-400 hover:text-amber-300 transition-all">
-                        <i class="fa-solid fa-filter-circle-xmark mr-1"></i>시황 제외 ({market_count})
+                        <i class="fa-solid fa-filter-circle-xmark mr-1"></i>시황 제외 스레드
                     </button>
                     <button onclick="switchTab('analytics')" id="tabBtn-analytics" class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all">
                         <i class="fa-solid fa-chart-pie mr-1"></i>MLOps 분석
@@ -225,7 +257,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                         <span>오늘의 핵심 사건 경영진 브리핑 (Universal Intelligence Executive Summary)</span>
                     </div>
                     <h2 class="text-xl font-extrabold text-white tracking-tight leading-snug">
-                        미국 대형 원전 수주 조기화와 SMR 공급망 확장 모멘텀이 핵심 동력입니다.
+                        체코 원전 투자 주도권 충돌과 북미 SMR 공급망 수주가 오늘의 핵심 화두입니다.
                     </h2>
                 </div>
                 <span class="hidden md:inline-flex items-center px-3 py-1 text-xs font-medium text-gray-300 bg-gray-800/80 rounded-lg border border-gray-700">
@@ -236,12 +268,20 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             <!-- 3 Core Points Grid -->
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-5">
                 <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
-                    <div class="flex items-center space-x-2 text-cyan-400 text-xs font-bold mb-1.5">
-                        <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-                        <span>[수주/계약] 북미 대형 원전 발주 가속</span>
+                    <div class="flex items-center space-x-2 text-amber-400 text-xs font-bold mb-1.5">
+                        <span class="w-2 h-2 rounded-full bg-amber-400 animate-ping"></span>
+                        <span>[주요 갈등] 대미 원전 투자 충돌</span>
                     </div>
-                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">미국 원전 정책 기반 조기 발주 및 신규 대형원전 수주 기대감으로 주가 10.55% 급등</p>
-                    <p class="text-xs text-gray-400 mt-2">현대건설 매터도어 4기 프로젝트와 연계 (유사도 0.89)</p>
+                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">미국형 원전 고집에 韓 난색… 대미 투자 주도권 및 손실 분담 문제 부각</p>
+                    <p class="text-xs text-gray-400 mt-2">이데일리 단독 보도 후속 2건 연결 (유사도 0.91)</p>
+                </div>
+                <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
+                    <div class="flex items-center space-x-2 text-cyan-400 text-xs font-bold mb-1.5">
+                        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                        <span>[기술 선점] SMR 3사 공급망 확보</span>
+                    </div>
+                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">두산에너빌, 美 SMR 3사 공급망 확보 완료… 글로벌 원전 확장 가속</p>
+                    <p class="text-xs text-gray-400 mt-2">서울경제TV, 국민일보 등 2건 연결 (유사도 0.84)</p>
                 </div>
                 <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
                     <div class="flex items-center space-x-2 text-emerald-400 text-xs font-bold mb-1.5">
@@ -250,14 +290,6 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                     </div>
                     <p class="text-sm font-semibold text-gray-200 line-clamp-2">美 정부의 한-미 공동 SPC 설립 제안… 한수원 지재권 갈등 해소 및 수출 가속</p>
                     <p class="text-xs text-gray-400 mt-2">기관 순매수 992억 원 유입 (유사도 0.85)</p>
-                </div>
-                <div class="bg-gray-800/50 rounded-xl p-4 border border-gray-700/60 hover:border-cyan-500/40 transition-all">
-                    <div class="flex items-center space-x-2 text-amber-400 text-xs font-bold mb-1.5">
-                        <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                        <span>[재무/실적] 시가총액 51조 원 돌파</span>
-                    </div>
-                    <p class="text-sm font-semibold text-gray-200 line-clamp-2">시가총액 51조 6,933억 원(14위) 달성, 거래량 316% 폭증</p>
-                    <p class="text-xs text-gray-400 mt-2">KB증권 등 주요 증권가 리포트 일제히 호평</p>
                 </div>
             </div>
         </section>
@@ -302,7 +334,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 <div class="flex items-center space-x-2">
                     <h3 class="text-lg font-bold text-white flex items-center">
                         <i class="fa-solid fa-code-merge text-cyan-400 mr-2"></i>
-                        gemini-embedding-2 사건 타임라인 스레드 (Fact-Guided v2.0)
+                        gemini-embedding-2 기업 사건 타임라인 스레드 (Broker-Aware v2.0)
                     </h3>
                     <span class="text-xs bg-gray-800 text-gray-400 px-2.5 py-0.5 rounded-full border border-gray-700">7-Key 팩트 벡터 클러스터링</span>
                 </div>
@@ -333,21 +365,22 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         </section>
 
         <!-- ================================================================= -->
-        <!-- TAB 3: Filtered Market News (Inspection & Audit) -->
+        <!-- TAB 3: Filtered Market News (Grouped by Market Threads) -->
         <!-- ================================================================= -->
         <section id="tab-filtered" class="hidden space-y-4">
             <div class="flex items-center justify-between mb-2">
                 <div>
                     <h3 class="text-lg font-bold text-amber-400 flex items-center">
                         <i class="fa-solid fa-filter-circle-xmark mr-2"></i>
-                        시황 및 노이즈로 제외된 기사 목록 ({market_count}건)
+                        시황 제외 기사 스레드 허브 ({len(market_threads_data)}개 복제 묶음 / 총 {market_count}건)
                     </h3>
-                    <p class="text-xs text-gray-400 mt-0.5">실시간 호가봇, 특징주 찌라시, 증권사 복제 어뷰징 등으로 자동 분류되어 대시보드 메인에서 제외된 기사들입니다.</p>
+                    <p class="text-xs text-gray-400 mt-0.5">수십 건씩 쏟아진 동일 키움증권 보도자료나 실시간 시세 기사들을 단일 아코디언 스레드로 압축하여 대표 1건만 노출합니다.</p>
                 </div>
-                <span class="text-xs px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">검토용 감사 뷰</span>
+                <span class="text-xs px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">시황 압축 뷰</span>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="filteredContainer">
+            <!-- Market Threads Accordion Grid -->
+            <div class="space-y-3" id="filteredContainer">
                 <!-- Injected via JavaScript -->
             </div>
         </section>
@@ -517,11 +550,12 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
     <!-- Embedded Data & Frontend Logic -->
     <script>
         const THREADS = {threads_json};
+        const MARKET_THREADS = {market_threads_json};
         const ARTICLES = {company_articles_json};
         const FILTERED_ARTICLES = {market_articles_json};
         const ALL_ARTICLES = {all_articles_json};
 
-        // Render Threads
+        // Render Corporate Threads
         function renderThreads() {{
             const container = document.getElementById('threadsContainer');
             container.innerHTML = '';
@@ -530,14 +564,14 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                 const isMulti = t.count > 1;
                 const card = document.createElement('div');
                 card.className = "glass-card rounded-xl p-5 border border-gray-800/90 glass-card-hover cursor-pointer";
-                card.onclick = () => toggleThreadDetails(idx);
+                card.onclick = () => toggleThreadDetails('corp', idx);
 
                 let membersHtml = '';
                 if (isMulti) {{
                     membersHtml = `
-                        <div id="thread-details-${{idx}}" class="hidden mt-4 pt-4 border-t border-gray-800/80 space-y-3">
+                        <div id="thread-corp-details-${{idx}}" class="hidden mt-4 pt-4 border-t border-gray-800/80 space-y-3">
                             <p class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                                <i class="fa-solid fa-code-branch mr-1 text-cyan-400"></i>시간순 후속 보도 타임라인 (7-Key 팩트 연계)
+                                <i class="fa-solid fa-code-branch mr-1 text-cyan-400"></i>시간순 후속 보도 타임라인 (Broker-Aware v2.0)
                             </p>
                             ${{t.members.map((m, mIdx) => `
                                 <div class="flex items-start space-x-3 bg-gray-900/60 p-3 rounded-lg border border-gray-800/60 hover:border-cyan-500/30"
@@ -591,8 +625,73 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             }});
         }}
 
-        function toggleThreadDetails(idx) {{
-            const el = document.getElementById(`thread-details-${{idx}}`);
+        // Render Filtered Market Threads
+        function renderMarketThreads() {{
+            const container = document.getElementById('filteredContainer');
+            container.innerHTML = '';
+
+            MARKET_THREADS.forEach((t, idx) => {{
+                const isMulti = t.count > 1;
+                const card = document.createElement('div');
+                card.className = "glass-card rounded-xl p-5 border border-gray-800 glass-card-danger cursor-pointer";
+                card.onclick = () => toggleThreadDetails('market', idx);
+
+                let membersHtml = '';
+                if (isMulti) {{
+                    membersHtml = `
+                        <div id="thread-market-details-${{idx}}" class="hidden mt-4 pt-4 border-t border-gray-800/80 space-y-2.5">
+                            <p class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2">
+                                <i class="fa-solid fa-clone mr-1"></i>동일 보도자료/시황 복제 기사 목록 (${{t.count}}건)
+                            </p>
+                            ${{t.members.map((m, mIdx) => `
+                                <div class="flex items-start space-x-3 bg-gray-900/70 p-2.5 rounded-lg border border-gray-800/80 hover:border-amber-500/40"
+                                     onclick="event.stopPropagation(); openModalByUrl('${{m.url}}')">
+                                    <div class="mt-0.5">
+                                        ${{m.is_key_anchor ? 
+                                            '<span class="w-5 h-5 rounded-full bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center text-[10px] font-bold">⚓</span>' : 
+                                            '<span class="w-5 h-5 rounded-full bg-gray-800 text-gray-500 flex items-center justify-center text-[10px]">↳</span>'}}
+                                    </div>
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center justify-between">
+                                            <span class="text-xs font-semibold text-gray-300">[${{m.media_name}}]</span>
+                                            <span class="text-xs text-gray-500">${{m.published_at}}</span>
+                                        </div>
+                                        <p class="text-xs text-gray-400 font-medium hover:text-amber-400 truncate mt-0.5">${{m.title}}</p>
+                                    </div>
+                                </div>
+                            `).join('')}}
+                        </div>
+                    `;
+                }}
+
+                card.innerHTML = `
+                    <div class="flex items-start justify-between">
+                        <div class="flex items-start space-x-3">
+                            <div class="mt-1">
+                                <span class="px-2.5 py-1 text-xs font-bold rounded-lg ${{isMulti ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30' : 'bg-gray-800 text-gray-500'}}">
+                                    ${{isMulti ? `시황 스레드 #${{t.thread_id}} (${{t.count}}건 복제 압축)` : '단독 시황'}}
+                                </span>
+                            </div>
+                            <div>
+                                <h4 class="text-base font-bold text-gray-200 hover:text-amber-400 transition-colors">${{t.title}}</h4>
+                                <div class="flex items-center space-x-3 text-xs text-gray-400 mt-1.5">
+                                    <span><i class="fa-regular fa-clock mr-1"></i>${{t.first_at}}</span>
+                                    <span>•</span>
+                                    <span>최초 언론사: ${{t.members[0] ? t.members[0].media_name : '알 수 없음'}}</span>
+                                    ${{isMulti ? `<span>•</span><span class="text-amber-400">클릭하여 복제 기사 ${{t.count}}건 펼치기</span>` : ''}}
+                                </div>
+                            </div>
+                        </div>
+                        ${{isMulti ? '<i class="fa-solid fa-chevron-down text-gray-500 mt-2"></i>' : ''}}
+                    </div>
+                    ${{membersHtml}}
+                `;
+                container.appendChild(card);
+            }});
+        }}
+
+        function toggleThreadDetails(type, idx) {{
+            const el = document.getElementById(`thread-${{type}}-details-${{idx}}`);
             if (el) el.classList.toggle('hidden');
         }}
 
@@ -645,48 +744,6 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                     <div class="mt-4 pt-3 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-500">
                         <span>7대 팩트 구조화 완료</span>
                         <span class="text-cyan-400 hover:underline">인텔리전스 리더 &rarr;</span>
-                    </div>
-                `;
-                container.appendChild(card);
-            }});
-        }}
-
-        // Render Filtered Market News
-        function renderFiltered() {{
-            const container = document.getElementById('filteredContainer');
-            container.innerHTML = '';
-
-            FILTERED_ARTICLES.forEach(a => {{
-                const card = document.createElement('div');
-                card.className = "glass-card rounded-xl p-5 border border-gray-800/80 glass-card-danger cursor-pointer flex flex-col justify-between";
-                card.onclick = () => openModal(a, true);
-
-                let reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">시황 점수 초과</span>';
-                if (a.is_exact_dup) {{
-                    reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">중복 복제 기사</span>';
-                }} else if (a.market_score >= 60) {{
-                    reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">실시간 호가/시세봇</span>';
-                }} else if (a.market_score >= 40) {{
-                    reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">특징주/테마주</span>';
-                }} else if (a.market_score >= 20) {{
-                    reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">다수 종목 나열</span>';
-                }}
-
-                card.innerHTML = `
-                    <div>
-                        <div class="flex items-center justify-between mb-2">
-                            <div class="flex items-center space-x-1.5">
-                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700">${{a.media_name || '언론사'}}</span>
-                                ${{reasonBadge}}
-                            </div>
-                            <span class="text-xs text-gray-500">${{a.published_at || ''}}</span>
-                        </div>
-                        <h4 class="text-sm font-bold text-gray-300 hover:text-amber-400 line-clamp-2 leading-snug">${{a.title}}</h4>
-                        <p class="text-xs text-gray-500 line-clamp-2 mt-2 leading-relaxed">${{a.chosen_text || a.body || ''}}</p>
-                    </div>
-                    <div class="mt-4 pt-3 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-500">
-                        <span>시황 점수: ${{a.market_score || 0}}점</span>
-                        <span class="text-amber-400 hover:underline">원문 & 제외사유 검토 &rarr;</span>
                     </div>
                 `;
                 container.appendChild(card);
@@ -903,7 +960,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             if (!query) {{
                 renderThreads();
                 renderArticles();
-                renderFiltered();
+                renderMarketThreads();
                 return;
             }}
             
@@ -941,7 +998,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         window.onload = function() {{
             renderThreads();
             renderArticles();
-            renderFiltered();
+            renderMarketThreads();
             initCharts();
         }};
     </script>

@@ -148,6 +148,20 @@ def calculate_market_score(
         f10_score = 30
     detail["F10_score"] = f10_score
 
+    # F11. 범용 주가/시세 변동 주도형 헤드라인 감지 (+60점: 시황 직행)
+    f11_score = 0
+    if re.search(
+        r'[가-힣]+주\s*동반\s*(급등|상승|하락|랠리|강세|약세)|'
+        r'주가\s*[\d.]+%\s*(급등|급락|상승|하락|올라|내려|뛰어|치솟)|'
+        r'시총\s*[\d.]+조\s*(돌파|증발|진입|달성|넘어)|'
+        r'[\d]+거래일\s*(연속|하락|조정|상승)\s*(끝|후|만에)\s*반등|'
+        r'[\d,]+선\s*(강보합|약보합|마감|턱밑|돌파)',
+        title
+    ):
+        f11_score = 60
+    detail["F11_score"] = f11_score
+
+
 
 
     # F2. 타 상장사 나열도
@@ -172,9 +186,10 @@ def calculate_market_score(
     detail["F2_capped"] = capped_f2
     detail["F2_score"] = final_f2
     
-    total_score = f1_score + final_f2 + f3_score + f4_score + f5_score + f6_score + f7_score + f8_score + f9_score + f10_score
+    total_score = f1_score + final_f2 + f3_score + f4_score + f5_score + f6_score + f7_score + f8_score + f9_score + f10_score + f11_score
     detail["total_score"] = total_score
     
     return total_score, detail
+
 
 
