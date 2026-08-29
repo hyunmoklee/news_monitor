@@ -274,13 +274,23 @@ def build_market_event_threads(
             "media_name": r["media_name"]
         })
 
-    vectors = get_batch_text_embeddings(texts_to_embed, concurrency=15)
-    for meta, vec in zip(meta_list, vectors):
-        meta["embedding"] = vec
-        articles.append(meta)
+    # [Cost Optimization] 시황 제외 기사는 유료 API 임베딩 대신 초고속 로컬 텍스트 벡터로 클러스터링
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    vectorizer = TfidfVectorizer(ngram_range=(1, 2), max_features=512)
+    try:
+        tfidf_matrix = vectorizer.fit_transform(texts_to_embed).toarray()
+        for meta, vec in zip(meta_list, tfidf_matrix):
+            meta["embedding"] = list(vec)
+            articles.append(meta)
+    except Exception:
+        vectors = get_batch_text_embeddings(texts_to_embed, concurrency=15)
+        for meta, vec in zip(meta_list, vectors):
+            meta["embedding"] = vec
+            articles.append(meta)
         
-    # 클러스터링
-    clusters = cluster_articles_by_event(articles, similarity_threshold=similarity_threshold)
+    # 클러스터링 (로컬 완전연결 계층 군집화)
+    clusters = cluster_articles_by_event(articles, similarity_threshold=0.35)
+
 
     
     conn = sqlite3.connect(db_path)

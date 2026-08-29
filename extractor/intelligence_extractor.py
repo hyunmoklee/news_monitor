@@ -76,8 +76,9 @@ async def extract_intelligence_async(
         temperature=0.0,
         response_mime_type="application/json",
         response_schema=UniversalIntelligence,
-        thinking_config=types.ThinkingConfig(thinking_budget=1024)
+        thinking_config=types.ThinkingConfig(thinking_budget=0)
     )
+
 
     try:
         response = await client.aio.models.generate_content(
