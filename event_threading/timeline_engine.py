@@ -32,12 +32,17 @@ BROKER_ENTITIES = [
 ]
 
 def extract_broker_entity(title: str, body: str) -> str:
-    """Detect broker entity from title or leading body."""
+    """기사 제목 및 서두에서 리포트 발행 기관을 표준 명칭으로 정규화하여 추출"""
     content = f"{title} {(body or '')[:200]}"
     for b in BROKER_ENTITIES:
         if b in content:
+            if b in ["한투증권", "한국투자증권"]: return "한국투자증권"
+            if b in ["미래에셋", "미래에셋증권"]: return "미래에셋증권"
+            if b in ["신한증권", "신한투자증권"]: return "신한투자증권"
+            if b in ["하이투자증권", "iM증권"]: return "iM증권"
             return b
     return "일반"
+
 
 def init_thread_tables(db_path: str = DB_PATH):
     """타임라인 스레드 관련 테이블 초기화"""
@@ -155,8 +160,10 @@ def build_event_threads(
             "original_title": title,
             "published_at": r["published_at"] or r["created_at"],
             "media_name": r["media_name"],
+            "broker": broker,
             "embedding": vec
         })
+
         
     # 사건 단위 클러스터링
     clusters = cluster_articles_by_event(articles, similarity_threshold=similarity_threshold)

@@ -127,14 +127,20 @@ def calculate_market_score(
         f7_score = 50
     detail["F7_score"] = f7_score
 
-    # 타깃 기업 본사 언급 횟수 동적 계산
+    # 타깃 기업 본사 언급 횟수 및 제목 포함 여부 동적 계산
     target_mention_count = sum((body or "").count(a) for a in t_aliases)
+    title_has_target = any(a in title for a in t_aliases)
 
-    # F8. 그룹사/지주사/오너 동향 감지 (+50점)
+    # F8. 범용 그룹사/지주사/오너 지배구조 감지 (타깃 기업 주체성 결여 시 +60점: 시황/노이즈 직행)
     f8_score = 0
-    if re.search(r'인물탐구|박정원|그룹사|지주사|지배구조|회장단|총수|오너\s*일가|M&A\s*후\s*매각', title) and target_mention_count <= 2:
-        f8_score = 50
+    if not title_has_target:
+        if re.search(r'\[[가-힣]*인물탐구\]|인물탐구|[가-힣]+그룹\s*회장|[가-힣]+그룹\s*총수|지주사\s*전환|경영권\s*승계', title):
+            f8_score = 60
+        elif target_mention_count <= 2 and re.search(r'[가-힣]+그룹|지주사|지배구조|회장단|총수|오너\s*일가|사업재편|인물탐구|승계|경영권\s*승계|M&A\s*후\s*매각', title + " " + lead_200):
+            f8_score = 60
     detail["F8_score"] = f8_score
+
+
 
     # F9. 지자체/광역단체 일반 행정·도정 감지 (+40점)
     f9_score = 0

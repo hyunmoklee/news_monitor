@@ -1,68 +1,72 @@
 """
 threading/clusterer.py
-임베딩 코사인 유사도(>=0.82) 및 고유명사 엔티티 매칭을 결합한 하이브리드 사건 클러스터러.
+- Universal Complete-Linkage Agglomerative Event Clusterer
+- High-Precision Multi-Tenant Event Threading
+- Hard Constraints for Source/Broker Entities (e.g. KB증권 vs 한국투자증권 100% 분리)
 """
-from typing import List, Dict, Tuple
+from typing import List, Dict
 from .embedder import compute_cosine_similarity
-
-def extract_key_topics(title: str) -> List[str]:
-    """제목에서 주요 비즈니스 토픽/엔티티 추출"""
-    topics = []
-    candidates = ["체코", "원전", "SMR", "가스터빈", "수소", "풍력", "신한울", "주기기", "수주", "실적", "보령", "루마니아"]
-    for c in candidates:
-        if c in title:
-            topics.append(c)
-    return topics
 
 def cluster_articles_by_event(
     articles: List[Dict],
-    similarity_threshold: float = 0.82
+    similarity_threshold: float = 0.88
 ) -> List[List[Dict]]:
     """
-    임베딩 벡터와 토픽 일치를 활용하여 연관 기사들을 사건 단위 클러스터로 그룹화합니다.
+    완전연결 계층적 군집화 (Complete-Linkage Agglomerative Clustering)를 통해
+    사건 단위의 고응집 타임라인 스레드를 생성합니다.
     """
     n = len(articles)
     if n == 0:
         return []
 
-    visited = [False] * n
-    clusters = []
+    # 1. 초기 상태: 각 기사를 개별 클러스터로 초기화
+    clusters = [[art] for art in articles]
 
-    for i in range(n):
-        if visited[i]:
-            continue
+    # 2. 상향식 계층 병합 (Bottom-Up Agglomerative Merge)
+    while True:
+        best_sim = -1.0
+        merge_pair = None
 
-        current_cluster = [articles[i]]
-        visited[i] = True
-        vec_i = articles[i].get("embedding", [])
-        topics_i = set(extract_key_topics(articles[i].get("title", "")))
+        # 모든 클러스터 쌍 (i, j) 간의 완전연결(Complete-Linkage) 최소 유사도 탐색
+        for i in range(len(clusters)):
+            for j in range(i + 1, len(clusters)):
+                cluster_a = clusters[i]
+                cluster_b = clusters[j]
 
-        for j in range(i + 1, n):
-            if visited[j]:
-                continue
+                # [Hard Constraint 1: 출처/분석기관 상호 배타성 검사]
+                brokers_a = {a.get("broker") for a in cluster_a if a.get("broker") and a.get("broker") != "일반"}
+                brokers_b = {b.get("broker") for b in cluster_b if b.get("broker") and b.get("broker") != "일반"}
+                if brokers_a and brokers_b and brokers_a != brokers_b:
+                    # 서로 다른 증권사/분석기관 리포트는 유사도가 높아도 병합 불가
+                    continue
 
-            vec_j = articles[j].get("embedding", [])
-            topics_j = set(extract_key_topics(articles[j].get("title", "")))
+                # [Complete-Linkage: 두 클러스터 내 모든 기사 쌍 간의 최소 유사도 계산]
+                min_sim_between = 1.0
+                for a in cluster_a:
+                    for b in cluster_b:
+                        cos_sim = compute_cosine_similarity(a["embedding"], b["embedding"])
+                        if cos_sim < min_sim_between:
+                            min_sim_between = cos_sim
 
-            # 코사인 유사도 계산
-            cos_sim = compute_cosine_similarity(vec_i, vec_j)
-            
-            # 토픽 자카드 일치도
-            topic_overlap = len(topics_i & topics_j) / len(topics_i | topics_j) if (topics_i | topics_j) else 0.0
+                # 전체 최소 유사도가 임계값 이상이고, 현재 탐색된 쌍 중 가장 높은 경우
+                if min_sim_between >= similarity_threshold and min_sim_between > best_sim:
+                    best_sim = min_sim_between
+                    merge_pair = (i, j)
 
-            # 하이브리드 결합 점수 (0.75 임베딩 + 0.25 엔티티 일치)
-            hybrid_score = 0.75 * cos_sim + 0.25 * topic_overlap
+        # 더 이상 임계값을 만족하는 병합 후보가 없으면 종료
+        if not merge_pair:
+            break
 
-            # 임계값 통과 시 동일 사건 클러스터로 병합
-            if hybrid_score >= similarity_threshold or cos_sim >= 0.86:
-                visited[j] = True
-                articles[j]["hybrid_score"] = round(hybrid_score, 3)
-                articles[j]["cos_sim"] = round(cos_sim, 3)
-                articles[j]["topic_overlap"] = round(topic_overlap, 3)
-                articles[j]["similarity_to_anchor"] = round(hybrid_score, 3)
-                current_cluster.append(articles[j])
+        # 최적 쌍 병합
+        idx1, idx2 = merge_pair
+        clusters[idx1].extend(clusters[idx2])
+        clusters.pop(idx2)
 
-        clusters.append(current_cluster)
+    # 3. 각 클러스터 내 기사들을 발행 시각순으로 정렬
+    for c in clusters:
+        c.sort(key=lambda x: x.get("published_at", ""))
 
+    # 4. 기사 수가 많고 최신인 순으로 클러스터 정렬
+    clusters.sort(key=lambda c: (len(c), c[0].get("published_at", "")), reverse=True)
 
     return clusters
