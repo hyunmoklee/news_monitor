@@ -109,38 +109,45 @@ def calculate_market_score(
     detail["F4_score"] = f4_score
     detail["matched_biz_keywords"] = list(set(matched_biz))
     
-    # F5. 실시간 시세봇 감지 (+40)
+    # F5. 실시간 시세봇 / 호가 나열 감지 (+60점: 시황 직행)
     f5_score = 0
-    if re.search(r'장중\s*[\d,]+원|거래되고\s*있으며|지난\s*종가\s*대비|시가는\s*[\d,]+원|전일\s*대비\s*[\d.]+%|거래대금\s*[\d,]+', title + " " + lead_200):
-        f5_score = 40
+    if re.search(r'장중\s*[\d,]+원|거래\s*중이다|거래되고\s*있으며|지난\s*종가\s*대비|시가는\s*[\d,]+원|전일\s*대비\s*[\d.]+%|거래대금\s*[\d,]+|상승한\s*가격을\s*기록|\[오늘,\s*이\s*종목\]|\[핫종목\]|\[잡포스트\]|\d+거래일\s*조정\s*후\s*반등|\d+거래일\s*하락\s*끝\s*반등|NXT서\s*주가', title + " " + lead_200):
+        f5_score = 60
     detail["F5_score"] = f5_score
 
-    # F6. [특징주], 테마주, ETF, 증시 풍향계 감지 (+30)
+    # F6. [특징주], 테마주, ETF, 증시 풍향계 감지 (+40점)
     f6_score = 0
-    if re.search(r'\[특징주\]|특징주|[가-힣]+株|\[N2\s*증시|풍향계|ETF\s*강세', title):
-        f6_score = 30
+    if re.search(r'\[특징주\]|특징주|[가-힣]+株|\[N2\s*증시|풍향계|ETF\s*강세|ETF\s*시황', title):
+        f6_score = 40
     detail["F6_score"] = f6_score
 
-    # F7. 투자자 매매동향 나열 감지 (+30)
+    # F7. 투자자 매매동향 나열 및 복합 증권 코너 감지 (+50점)
     f7_score = 0
-    if re.search(r'1%\s*초고수|큰손들|고액자산가|개미들|순매수|갈아탔다', title):
-        f7_score = 30
+    if re.search(r'1%\s*초고수|큰손들|고액자산가|개미들|순매수|갈아탔다|\[株토피아\]|▶[A-Za-z가-힣]+증권|\d+조\s*잭팟', title + " " + lead_200):
+        f7_score = 50
     detail["F7_score"] = f7_score
 
     # 타깃 기업 본사 언급 횟수 동적 계산
     target_mention_count = sum((body or "").count(a) for a in t_aliases)
 
-    # F8. 그룹사/지주사/오너 동향 감지 (타깃 기업 본사 언급 1회 이하 + 그룹/지배구조 키워드) (+30)
+    # F8. 그룹사/지주사/오너 동향 감지 (+50점)
     f8_score = 0
-    if re.search(r'그룹사|지주사|지배구조|인물탐구|회장단|총수|오너\s*일가|M&A\s*후', title) and target_mention_count <= 1:
-        f8_score = 30
+    if re.search(r'인물탐구|박정원|그룹사|지주사|지배구조|회장단|총수|오너\s*일가|M&A\s*후\s*매각', title) and target_mention_count <= 2:
+        f8_score = 50
     detail["F8_score"] = f8_score
 
-    # F9. 지자체/광역단체 일반 행정·도정 감지 (타깃 기업 본사 언급 1회 이하 + 지자체 직제 키워드) (+30)
+    # F9. 지자체/광역단체 일반 행정·도정 감지 (+40점)
     f9_score = 0
-    if re.search(r'도청|시청|도지사|광역단체장|특례시|도정\s*소식|재난통합', title) and target_mention_count <= 1:
-        f9_score = 30
+    if re.search(r'도청|시청|도지사|광역단체장|특례시|도정\s*소식|재난통합|창원특례시|경남도청', title) and target_mention_count <= 2:
+        f9_score = 40
     detail["F9_score"] = f9_score
+
+    # F10. 증권사 단순 투자의견/목표가 복제 단신 (+30점)
+    f10_score = 0
+    if re.search(r'목표가\s*[\d,]+원|투자의견\s*매수|증권가\s*"|증권가\s*분석에', title):
+        f10_score = 30
+    detail["F10_score"] = f10_score
+
 
 
     # F2. 타 상장사 나열도
@@ -165,8 +172,9 @@ def calculate_market_score(
     detail["F2_capped"] = capped_f2
     detail["F2_score"] = final_f2
     
-    total_score = f1_score + final_f2 + f3_score + f4_score + f5_score + f6_score + f7_score + f8_score + f9_score
+    total_score = f1_score + final_f2 + f3_score + f4_score + f5_score + f6_score + f7_score + f8_score + f9_score + f10_score
     detail["total_score"] = total_score
     
     return total_score, detail
+
 
