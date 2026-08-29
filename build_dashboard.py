@@ -3,7 +3,8 @@
 Executive News Intelligence Dashboard Generator v2.0
 - Bloomberg / Palantir / Modern SaaS Dark Glassmorphism UI
 - gemini-embedding-2 Event Timeline Hub (Interactive Flow)
-- 7-Key Universal Intelligence Fact Box Modal (Headlines, Bullets, Metrics, Milestones, Implication)
+- 7-Key Universal Intelligence Fact Box Modal
+- Filtered Market News Inspection Tab (Audit & Review Section)
 - Chart.js Analytics (Noise Filtering, Temporal Trend, Media Distribution)
 """
 import sqlite3
@@ -98,6 +99,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
     # JSON Data for Frontend
     threads_json = json.dumps(threads_data, ensure_ascii=False)
     company_articles_json = json.dumps(company_articles, ensure_ascii=False)
+    market_articles_json = json.dumps(market_articles, ensure_ascii=False)
     all_articles_json = json.dumps(all_articles, ensure_ascii=False)
     
     html_content = f"""<!DOCTYPE html>
@@ -153,6 +155,12 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             transform: translateY(-2px);
             transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }}
+        .glass-card-danger:hover {{
+            background: rgba(31, 41, 55, 0.85);
+            border-color: rgba(239, 68, 68, 0.4);
+            transform: translateY(-2px);
+            transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+        }}
         .neon-border-cyan {{ box-shadow: 0 0 15px rgba(6, 182, 212, 0.2); }}
         .neon-border-emerald {{ box-shadow: 0 0 15px rgba(16, 185, 129, 0.2); }}
         .custom-scrollbar::-webkit-scrollbar {{ width: 6px; height: 6px; }}
@@ -183,18 +191,21 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             <div class="flex items-center space-x-4">
                 <div class="relative hidden sm:block w-72">
                     <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-gray-400 text-sm"></i>
-                    <input type="text" id="searchInput" placeholder="사건명, 수주액, 엔티티 검색..." 
+                    <input type="text" id="searchInput" placeholder="사건명, 수주액, 제외사유 검색..." 
                            class="w-full bg-gray-900/90 border border-gray-700/80 rounded-xl pl-9 pr-4 py-2 text-sm text-gray-200 placeholder-gray-500 focus:outline-none focus:border-cyan-500 focus:ring-1 focus:ring-cyan-500 transition-all">
                 </div>
                 <div class="flex bg-gray-900 p-1 rounded-xl border border-gray-800">
-                    <button onclick="switchTab('threads')" id="tabBtn-threads" class="px-4 py-1.5 rounded-lg text-sm font-semibold transition-all bg-cyan-600 text-white shadow-md">
-                        <i class="fa-solid fa-timeline mr-1.5"></i>사건 타임라인
+                    <button onclick="switchTab('threads')" id="tabBtn-threads" class="px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all bg-cyan-600 text-white shadow-md">
+                        <i class="fa-solid fa-timeline mr-1"></i>사건 타임라인
                     </button>
-                    <button onclick="switchTab('articles')" id="tabBtn-articles" class="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all">
-                        <i class="fa-solid fa-newspaper mr-1.5"></i>구조화 팩트 기사
+                    <button onclick="switchTab('articles')" id="tabBtn-articles" class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all">
+                        <i class="fa-solid fa-newspaper mr-1"></i>구조화 기사 ({company_count})
                     </button>
-                    <button onclick="switchTab('analytics')" id="tabBtn-analytics" class="px-4 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all">
-                        <i class="fa-solid fa-chart-pie mr-1.5"></i>MLOps 분석
+                    <button onclick="switchTab('filtered')" id="tabBtn-filtered" class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-amber-400 hover:text-amber-300 transition-all">
+                        <i class="fa-solid fa-filter-circle-xmark mr-1"></i>시황 제외 ({market_count})
+                    </button>
+                    <button onclick="switchTab('analytics')" id="tabBtn-analytics" class="px-3.5 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all">
+                        <i class="fa-solid fa-chart-pie mr-1"></i>MLOps 분석
                     </button>
                 </div>
             </div>
@@ -311,7 +322,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             <div class="flex items-center justify-between mb-2">
                 <h3 class="text-lg font-bold text-white flex items-center">
                     <i class="fa-solid fa-newspaper text-emerald-400 mr-2"></i>
-                    구조화 팩트 기반 기업 핵심 기사
+                    구조화 팩트 기반 기업 핵심 기사 ({company_count}건)
                 </h3>
                 <span class="text-xs text-gray-400">7대 범용 인텔리전스 스키마 완비</span>
             </div>
@@ -322,7 +333,27 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         </section>
 
         <!-- ================================================================= -->
-        <!-- TAB 3: MLOps Analytics & Charts -->
+        <!-- TAB 3: Filtered Market News (Inspection & Audit) -->
+        <!-- ================================================================= -->
+        <section id="tab-filtered" class="hidden space-y-4">
+            <div class="flex items-center justify-between mb-2">
+                <div>
+                    <h3 class="text-lg font-bold text-amber-400 flex items-center">
+                        <i class="fa-solid fa-filter-circle-xmark mr-2"></i>
+                        시황 및 노이즈로 제외된 기사 목록 ({market_count}건)
+                    </h3>
+                    <p class="text-xs text-gray-400 mt-0.5">실시간 호가봇, 특징주 찌라시, 증권사 복제 어뷰징 등으로 자동 분류되어 대시보드 메인에서 제외된 기사들입니다.</p>
+                </div>
+                <span class="text-xs px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20">검토용 감사 뷰</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="filteredContainer">
+                <!-- Injected via JavaScript -->
+            </div>
+        </section>
+
+        <!-- ================================================================= -->
+        <!-- TAB 4: MLOps Analytics & Charts -->
         <!-- ================================================================= -->
         <section id="tab-analytics" class="hidden space-y-6">
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -395,6 +426,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                     <div class="flex items-center space-x-2">
                         <span id="modalMedia" class="px-2.5 py-1 rounded-md text-xs font-bold bg-cyan-500/20 text-cyan-400 border border-cyan-500/30">언론사</span>
                         <span id="modalCategory" class="px-2.5 py-1 rounded-md text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">카테고리</span>
+                        <span id="modalStatusBadge" class="hidden px-2.5 py-1 rounded-md text-xs font-bold bg-amber-500/20 text-amber-400 border border-amber-500/30">시황제외</span>
                     </div>
                     <button onclick="closeModal()" class="text-gray-400 hover:text-white text-xl">
                         <i class="fa-solid fa-xmark"></i>
@@ -403,7 +435,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
                 <!-- Headline -->
                 <div>
-                    <span class="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">
+                    <span id="modalHeadlineLabel" class="text-xs font-bold text-cyan-400 uppercase tracking-wider block mb-1">
                         <i class="fa-solid fa-bolt mr-1"></i>C-Level Executive Headline
                     </span>
                     <h3 id="modalHeadline" class="text-xl font-extrabold text-white leading-snug">헤드라인</h3>
@@ -421,7 +453,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
                     <!-- Core Summary Bullets -->
                     <div class="bg-gray-800/60 rounded-xl p-4 border border-gray-700/60">
                         <h4 class="text-xs font-bold text-gray-300 uppercase tracking-wider mb-2.5 flex items-center">
-                            <i class="fa-solid fa-list-check text-cyan-400 mr-1.5"></i>경영진 3줄 핵심 요약
+                            <i class="fa-solid fa-list-check text-cyan-400 mr-1.5"></i>경영진 핵심 요약 / 판정 내용
                         </h4>
                         <ul id="modalBullets" class="text-sm text-gray-200 space-y-1.5 leading-relaxed font-normal">
                             <!-- Bullets -->
@@ -486,6 +518,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
     <script>
         const THREADS = {threads_json};
         const ARTICLES = {company_articles_json};
+        const FILTERED_ARTICLES = {market_articles_json};
         const ALL_ARTICLES = {all_articles_json};
 
         // Render Threads
@@ -563,7 +596,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             if (el) el.classList.toggle('hidden');
         }}
 
-        // Render Articles with Fact Badges
+        // Render Core Articles
         function renderArticles() {{
             const container = document.getElementById('articlesContainer');
             container.innerHTML = '';
@@ -618,15 +651,57 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             }});
         }}
 
+        // Render Filtered Market News
+        function renderFiltered() {{
+            const container = document.getElementById('filteredContainer');
+            container.innerHTML = '';
+
+            FILTERED_ARTICLES.forEach(a => {{
+                const card = document.createElement('div');
+                card.className = "glass-card rounded-xl p-5 border border-gray-800/80 glass-card-danger cursor-pointer flex flex-col justify-between";
+                card.onclick = () => openModal(a, true);
+
+                let reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">시황 점수 초과</span>';
+                if (a.is_exact_dup) {{
+                    reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">중복 복제 기사</span>';
+                }} else if (a.market_score >= 60) {{
+                    reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-red-500/20 text-red-400 border border-red-500/30">실시간 호가/시세봇</span>';
+                }} else if (a.market_score >= 40) {{
+                    reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">특징주/테마주</span>';
+                }} else if (a.market_score >= 20) {{
+                    reasonBadge = '<span class="text-xs font-semibold px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 border border-amber-500/30">다수 종목 나열</span>';
+                }}
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <div class="flex items-center space-x-1.5">
+                                <span class="text-xs font-semibold px-2 py-0.5 rounded bg-gray-800 text-gray-300 border border-gray-700">${{a.media_name || '언론사'}}</span>
+                                ${{reasonBadge}}
+                            </div>
+                            <span class="text-xs text-gray-500">${{a.published_at || ''}}</span>
+                        </div>
+                        <h4 class="text-sm font-bold text-gray-300 hover:text-amber-400 line-clamp-2 leading-snug">${{a.title}}</h4>
+                        <p class="text-xs text-gray-500 line-clamp-2 mt-2 leading-relaxed">${{a.chosen_text || a.body || ''}}</p>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-gray-800/80 flex items-center justify-between text-xs text-gray-500">
+                        <span>시황 점수: ${{a.market_score || 0}}점</span>
+                        <span class="text-amber-400 hover:underline">원문 & 제외사유 검토 &rarr;</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            }});
+        }}
+
         // Modal Functions with 7-Key Fact Box
-        function openModal(a) {{
+        function openModal(a, isFiltered = false) {{
             let s_intel = null;
             try {{
                 if (a.structured_intelligence) s_intel = JSON.parse(a.structured_intelligence);
             }} catch(e) {{}}
 
             const headline = (s_intel && s_intel.executive_headline) ? s_intel.executive_headline : a.title;
-            const cat = (s_intel && s_intel.event_category) ? s_intel.event_category : (a.event_category || '경영일반');
+            const cat = (s_intel && s_intel.event_category) ? s_intel.event_category : (a.event_category || (isFiltered ? '시황 제외' : '경영일반'));
             const bullets = (s_intel && s_intel.core_summary_bullets) ? s_intel.core_summary_bullets : [];
             const metrics = (s_intel && s_intel.key_metrics) ? s_intel.key_metrics : [];
             const milestones = (s_intel && s_intel.timeline_milestones) ? s_intel.timeline_milestones : [];
@@ -641,10 +716,25 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             document.getElementById('modalUrl').href = a.url || '#';
             document.getElementById('modalRawBody').innerText = a.chosen_text || a.body || '본문 없음';
 
+            const statusBadge = document.getElementById('modalStatusBadge');
+            const headlineLabel = document.getElementById('modalHeadlineLabel');
+            if (isFiltered) {{
+                statusBadge.classList.remove('hidden');
+                headlineLabel.innerHTML = '<i class="fa-solid fa-filter-circle-xmark mr-1 text-amber-400"></i>제외된 시황 기사 (Audit Inspector)';
+            }} else {{
+                statusBadge.classList.add('hidden');
+                headlineLabel.innerHTML = '<i class="fa-solid fa-bolt mr-1"></i>C-Level Executive Headline';
+            }}
+
             // Render Bullets
             const bulletsEl = document.getElementById('modalBullets');
             bulletsEl.innerHTML = '';
-            if (bullets.length > 0) {{
+            if (isFiltered) {{
+                bulletsEl.innerHTML = `
+                    <li class="text-amber-300"><strong>[제외 사유]</strong> 시황 점수 ${{a.market_score || 0}}점 (임계값 +20점 초과)</li>
+                    <li class="text-gray-300">• 단순 지수 시세, 복수 종목 나열, 어뷰징 찌라시 또는 중복 기사로 판정되어 제외되었습니다.</li>
+                `;
+            }} else if (bullets.length > 0) {{
                 bullets.forEach(b => {{
                     const li = document.createElement('li');
                     li.innerText = b;
@@ -704,7 +794,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
         function openModalByUrl(url) {{
             const target = ALL_ARTICLES.find(a => a.url === url);
-            if (target) openModal(target);
+            if (target) openModal(target, target.is_market_news || target.is_exact_dup);
         }}
 
         function closeModal() {{
@@ -721,13 +811,18 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
 
         // Tab Switching
         function switchTab(tabName) {{
-            ['threads', 'articles', 'analytics'].forEach(t => {{
+            ['threads', 'articles', 'filtered', 'analytics'].forEach(t => {{
                 document.getElementById(`tab-${{t}}`).classList.add('hidden');
-                document.getElementById(`tabBtn-${{t}}`).className = "px-4 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all";
+                document.getElementById(`tabBtn-${{t}}`).className = "px-3.5 py-1.5 rounded-lg text-sm font-medium text-gray-400 hover:text-white transition-all";
             }});
 
             document.getElementById(`tab-${{tabName}}`).classList.remove('hidden');
-            document.getElementById(`tabBtn-${{tabName}}`).className = "px-4 py-1.5 rounded-lg text-sm font-semibold transition-all bg-cyan-600 text-white shadow-md";
+            const activeBtn = document.getElementById(`tabBtn-${{tabName}}`);
+            if (tabName === 'filtered') {{
+                activeBtn.className = "px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all bg-amber-600 text-white shadow-md";
+            }} else {{
+                activeBtn.className = "px-3.5 py-1.5 rounded-lg text-sm font-semibold transition-all bg-cyan-600 text-white shadow-md";
+            }}
         }}
 
         // Initialize Charts
@@ -808,6 +903,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
             if (!query) {{
                 renderThreads();
                 renderArticles();
+                renderFiltered();
                 return;
             }}
             
@@ -845,6 +941,7 @@ def generate_dashboard(target_keyword=None, out_filename="index.html"):
         window.onload = function() {{
             renderThreads();
             renderArticles();
+            renderFiltered();
             initCharts();
         }};
     </script>
