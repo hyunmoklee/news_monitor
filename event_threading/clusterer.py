@@ -56,9 +56,13 @@ def cluster_articles_by_event(
             # 임계값 통과 시 동일 사건 클러스터로 병합
             if hybrid_score >= similarity_threshold or cos_sim >= 0.86:
                 visited[j] = True
-                articles[j]["similarity_to_anchor"] = round(cos_sim, 3)
+                articles[j]["hybrid_score"] = round(hybrid_score, 3)
+                articles[j]["cos_sim"] = round(cos_sim, 3)
+                articles[j]["topic_overlap"] = round(topic_overlap, 3)
+                articles[j]["similarity_to_anchor"] = round(hybrid_score, 3)
                 current_cluster.append(articles[j])
 
         clusters.append(current_cluster)
+
 
     return clusters

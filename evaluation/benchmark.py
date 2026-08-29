@@ -115,6 +115,23 @@ def evaluate_gold_dataset(
 
     rule_acc = rule_correct / rule_evaluated if rule_evaluated > 0 else 0.0
     llm_acc = llm_correct / llm_evaluated if llm_evaluated > 0 else 0.0
+    
+    print("="*70)
+    print(f"📊 [Gold Dataset Benchmark Evaluation Report] Total N={total}")
+    print("="*70)
+    print(f"  * Evaluated Samples   : {total} / {len(gold_data)} samples")
+    print(f"  * Overall Accuracy    : {accuracy*100:.2f}% (95% CI: {acc_ci_low*100:.1f}% ~ {acc_ci_high*100:.1f}%)")
+    print(f"\n  [Confusion Matrix]")
+    print(f"    - True Market (TP)  : {tp:<3} | False Market (FP) : {fp:<3}")
+    print(f"    - True Company (TN) : {tn:<3} | False Company (FN): {fn:<3}")
+    print(f"\n  [Company Core News Metrics]")
+    print(f"    - Precision : {company_precision*100:.2f}% (95% CI: {comp_prec_ci_low*100:.1f}% ~ {comp_prec_ci_high*100:.1f}%)")
+    print(f"    - Recall    : {company_recall*100:.2f}% (95% CI: {comp_rec_ci_low*100:.1f}% ~ {comp_rec_ci_high*100:.1f}%)")
+    print(f"    - F1-Score  : {company_f1:.4f}")
+    print(f"\n  [Section-wise Audit Analysis]")
+    print(f"    - Rule Section Accuracy : {rule_acc*100:.2f}% ({rule_evaluated} items)")
+    print(f"    - LLM Section Accuracy  : {llm_acc*100:.2f}% ({llm_evaluated} items)")
+    print("="*70 + "\n")
 
     report = {
         "total_gold_samples": len(gold_data),

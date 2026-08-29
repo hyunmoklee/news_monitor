@@ -109,6 +109,36 @@ def calculate_market_score(
     detail["F4_score"] = f4_score
     detail["matched_biz_keywords"] = list(set(matched_biz))
     
+    # F5. 실시간 시세봇 감지 (+40)
+    f5_score = 0
+    if re.search(r'장중\s*[\d,]+원|거래되고\s*있으며|지난\s*종가\s*대비|시가는\s*[\d,]+원|전일\s*대비\s*[\d.]+%|거래대금\s*[\d,]+', title + " " + lead_200):
+        f5_score = 40
+    detail["F5_score"] = f5_score
+
+    # F6. [특징주], 테마주, ETF, 증시 풍향계 감지 (+30)
+    f6_score = 0
+    if re.search(r'\[특징주\]|특징주|[가-힣]+株|\[N2\s*증시|풍향계|ETF\s*강세', title):
+        f6_score = 30
+    detail["F6_score"] = f6_score
+
+    # F7. 투자자 매매동향 나열 감지 (+30)
+    f7_score = 0
+    if re.search(r'1%\s*초고수|큰손들|고액자산가|개미들|순매수|갈아탔다', title):
+        f7_score = 30
+    detail["F7_score"] = f7_score
+
+    # F8. 그룹사/지주사/오너 동향 감지 (두산에너빌 본사 언급 1회 이하 + 그룹/지배구조 키워드) (+30)
+    f8_score = 0
+    if re.search(r'그룹사|지주사|지배구조|인물탐구|회장단|총수|오너\s*일가|M&A\s*후', title) and (body or "").count("두산에너빌") <= 1:
+        f8_score = 30
+    detail["F8_score"] = f8_score
+
+    # F9. 지자체/광역단체 일반 행정·도정 감지 (두산에너빌 본사 언급 1회 이하 + 지자체 직제 키워드) (+30)
+    f9_score = 0
+    if re.search(r'도청|시청|도지사|광역단체장|특례시|도정\s*소식|재난통합', title) and (body or "").count("두산에너빌") <= 1:
+        f9_score = 30
+    detail["F9_score"] = f9_score
+
     # F2. 타 상장사 나열도
     valid_company_matches = 0
     for comp in company_list:
@@ -131,7 +161,8 @@ def calculate_market_score(
     detail["F2_capped"] = capped_f2
     detail["F2_score"] = final_f2
     
-    total_score = f1_score + final_f2 + f3_score + f4_score
+    total_score = f1_score + final_f2 + f3_score + f4_score + f5_score + f6_score + f7_score + f8_score + f9_score
     detail["total_score"] = total_score
     
     return total_score, detail
+

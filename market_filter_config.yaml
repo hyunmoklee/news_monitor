@@ -55,9 +55,10 @@ targets:
     - 수주
     - 수소터빈
 thresholds:
-  T1_company_cutoff: -20
+  T1_company_cutoff: -35
   T2_market_cutoff: 20
-version: v1.2
+version: v1.3
+
 
 
 weights:

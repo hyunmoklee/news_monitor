@@ -401,9 +401,10 @@ def main():
         asyncio.run(execute_backfill(
             start_date=args.start_date,
             batch_size=args.batch_size,
-            reprocess_from_version=args.reprocess_from_version,
+            reprocess_version=args.reprocess_from_version,
             inject_error=args.inject_error
         ))
+
     elif args.command == "run-audit":
         from audit.spot_auditor import run_spot_audit
         asyncio.run(run_spot_audit(sample_rate=args.sample_rate))
